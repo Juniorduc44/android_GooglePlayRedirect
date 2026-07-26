@@ -3,24 +3,45 @@
 Converts **Philippine Peso (PHP)** to **US Dollar (USD)** using a live
 exchange rate, with an offline fallback.
 
-| Build | Version |
+| Build | Value |
 |---|---|
 | Android APK | **v1.0.0** (`versionCode` 1) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
+| APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
+
+## Versioning SOP
+
+**Global (whole workspace):**  
+[`../../VERSIONING.md`](../../VERSIONING.md)
+
+**App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
+
+| Change type | Version bump | Example |
+|---|---|---|
+| Major | `MAJOR` +1, reset minor/patch | `v1.0.0` → `v2.0.0` |
+| Minor | `MINOR` +1, reset patch | `v1.0.0` → `v1.1.0` |
+| Patch | `PATCH` +1 | `v1.0.0` → `v1.0.1` |
+
+Current version file: [`VERSION`](./VERSION) → `1.0.0`
+
+### Changelog
+
+#### v1.0.0
+
+- Initial Android release: PHP → USD converter with live rate and offline fallback
+- Desktop CustomTkinter app (`app.py`) included in the same project folder
 
 ## Outputs
 
 | Artifact | Path |
 |---|---|
-| **Release APK v1.0.0** | `dist/php-usd-converter-v1.0.0.apk` |
-| Alias | `dist/v1.0.0.apk` |
+| **Release APK** | `dist/php-usd-converter-v1.0.0.apk` |
 | Desktop GUI | `app.py` |
 
-## Desktop app (CustomTkinter)
+One APK name only — no short aliases (`v1.0.0.apk`).
 
-Logic verified in this environment (live rate fetch + conversion). The GUI
-needs a real display (not available headless/Docker without X11).
+## Desktop app (CustomTkinter)
 
 ```bash
 cd android-graphene-workspace/projects/php-usd-converter
@@ -30,7 +51,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-## Android APK v1.0.0
+## Android APK
 
 Native Kotlin port of the same converter:
 
@@ -39,26 +60,31 @@ Native Kotlin port of the same converter:
 - Dark UI (Material), no Google Play Services
 - Internet permission only
 
-### Install on device (ADB)
+### Install on device
+
+Download / sideload:
+
+```text
+dist/php-usd-converter-v1.0.0.apk
+```
+
+Or via ADB:
 
 ```bash
 adb install -r dist/php-usd-converter-v1.0.0.apk
-# or
-adb install -r dist/v1.0.0.apk
 ```
 
-Enable **Install unknown apps** / sideload if prompted (GrapheneOS: allow for
-the installer you use).
-
-### Rebuild the APK
+### Rebuild (see VERSIONING.md for full checklist)
 
 ```bash
+# After bumping versionName / versionCode in android/app/build.gradle.kts
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export ANDROID_HOME=/home/coder/android_GooglePlayRedirect/tools/android-sdk
+export ANDROID_HOME=../../../../tools/android-sdk   # adjust if needed
 cd android
 ./gradlew assembleRelease
-cp app/build/outputs/apk/release/app-release.apk ../dist/php-usd-converter-v1.0.0.apk
-cp ../dist/php-usd-converter-v1.0.0.apk ../dist/v1.0.0.apk
+VER=$(cat ../VERSION)
+cp app/build/outputs/apk/release/app-release.apk \
+  "../dist/php-usd-converter-v${VER}.apk"
 ```
 
 ## Project layout
@@ -66,21 +92,18 @@ cp ../dist/php-usd-converter-v1.0.0.apk ../dist/v1.0.0.apk
 ```text
 php-usd-converter/
 ├── README.md
+├── VERSIONING.md          # SOP for major / minor / patch releases
+├── VERSION                # current X.Y.Z (no "v" prefix)
 ├── CONTEXT.md
-├── app.py                 # desktop CustomTkinter app
+├── app.py
 ├── requirements.txt
 ├── dist/
-│   ├── php-usd-converter-v1.0.0.apk
-│   └── v1.0.0.apk
-└── android/               # Kotlin Android Studio / Gradle project
-    ├── app/
-    └── gradlew
+│   └── php-usd-converter-v1.0.0.apk
+└── android/
 ```
 
 ## Notes
 
-- Desktop CustomTkinter **cannot** be packaged as a real APK directly; the
-  Android app is a native port with the same behavior.
+- Desktop CustomTkinter cannot be packaged as an APK; Android is a native port.
 - No GMS / Play Integrity / Firebase.
-- Release is signed with a project-local keystore under `android/app/` for
-  sideload builds (not a Play Store upload key).
+- Keystore is local / not in git; signed `dist/` APK is the shippable artifact.

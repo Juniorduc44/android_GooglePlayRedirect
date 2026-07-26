@@ -1,6 +1,7 @@
 # android_GooglePlayRedirect
 
-App meant for redirecting to the browser instead of Google Play.
+App meant for redirecting to the browser instead of Google Play — and a
+home for related GrapheneOS-first Android tools.
 
 ## Active workspace
 
@@ -13,15 +14,27 @@ android-graphene-workspace/
 AI tools and humans should treat that folder as the operational root:
 
 1. Read `android-graphene-workspace/AGENTS.md`
-2. Read `android-graphene-workspace/CONTEXT.md`
-3. Read `android-graphene-workspace/REFERENCES.md`
-4. Work under `android-graphene-workspace/projects/<name>/`
+2. Read `android-graphene-workspace/VERSIONING.md` **(whole-repo release SOP)**
+3. Read `android-graphene-workspace/CONTEXT.md`
+4. Read `android-graphene-workspace/REFERENCES.md`
+5. Work under `android-graphene-workspace/projects/<name>/`
+
+### Versioning (all apps)
+
+| Bump | Example | Meaning |
+|---|---|---|
+| Major | `v1.0.0` → `v2.0.0` | Breaking / large redesign |
+| Minor | `v1.0.0` → `v1.1.0` | New features |
+| Patch | `v1.0.0` → `v1.0.1` | Fixes / small polish |
+
+APK name: `{project}-vMAJOR.MINOR.PATCH.apk` only.  
+Full checklist: [`android-graphene-workspace/VERSIONING.md`](android-graphene-workspace/VERSIONING.md).
 
 ### Active projects
 
 | Project | Path | Status |
 |---|---|---|
-| php-usd-converter | `android-graphene-workspace/projects/php-usd-converter/` | Working / testing |
+| php-usd-converter | `android-graphene-workspace/projects/php-usd-converter/` | **v1.0.0** shipped |
 | google-play-redirect | `android-graphene-workspace/projects/google-play-redirect/` | In progress |
 
 Scaffold another tool:
@@ -33,17 +46,16 @@ cd android-graphene-workspace
 
 ## Host tooling
 
-Android platform-tools (ADB / fastboot) are installed at:
-
-```text
-tools/platform-tools/
-```
-
-`~/.bashrc` adds that directory to `PATH`. Verify:
+| Tool | Purpose |
+|---|---|
+| `adb` / `fastboot` | Device tools (`tools/platform-tools/`) |
+| `gh` | GitHub CLI (releases, PRs) |
+| OpenJDK 21 | Android builds |
+| Android SDK | `tools/android-sdk/` (local, not in git) |
 
 ```bash
 adb version
-adb devices
+gh --version
 ```
 
 ## Identity

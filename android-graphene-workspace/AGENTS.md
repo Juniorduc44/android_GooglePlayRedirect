@@ -110,6 +110,28 @@ android-graphene-workspace/
 │   └── _template/                <- copy this per new tool/project
 │       ├── CONTEXT.md
 │       └── README.md
+│   └── <app>/
+│       ├── VERSIONING.md         <- SemVer + APK naming SOP (when app ships APKs)
+│       ├── VERSION               <- current X.Y.Z
+│       └── dist/<name>-vX.Y.Z.apk
 └── scripts/
     └── new-project.sh            <- scaffolds a new projects/<name>/ folder
 ```
+
+## 6. Versioning & releases (whole workspace)
+
+**Binding SOP:** `VERSIONING.md` in this workspace root
+(`android-graphene-workspace/VERSIONING.md`).
+
+Applies to **every** project under `projects/` that ships versioned
+artifacts:
+
+- **One** APK filename pattern: `<project-slug>-vMAJOR.MINOR.PATCH.apk` (no short aliases)
+- **MAJOR** — breaking / large redesign (`v1.x.x` → `v2.0.0`)
+- **MINOR** — backward-compatible features (`v1.0.0` → `v1.1.0`)
+- **PATCH** — fixes / small polish (`v1.0.0` → `v1.0.1`)
+- Always bump Android `versionCode` (see global SOP formula)
+- Ship with `gh release create` + matching git tag when releasing
+
+App-specific notes (paths only) may live in
+`projects/<name>/VERSIONING.md` and must not contradict the global SOP.
