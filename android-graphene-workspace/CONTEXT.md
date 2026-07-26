@@ -50,5 +50,5 @@ Also tracked:
 | Project folder | What it is | Status |
 |---|---|---|
 | `projects/_template/` | Template to copy for new tools | n/a |
-| `projects/google-play-redirect/` | Play links → browser + debug log export | **v1.1.0** |
+| `projects/google-play-redirect/` | Play links → browser + debug log export | **v1.1.1** |
 | `projects/php-usd-converter/` | PHP ↔ USD converter | shipped **v1.1.1** |

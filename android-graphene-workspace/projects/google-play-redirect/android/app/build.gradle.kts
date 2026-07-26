@@ -11,8 +11,8 @@ android {
         applicationId = "com.juniorduc44.playredirect"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10100
-        versionName = "1.1.0"
+        versionCode = 10101
+        versionName = "1.1.1"
     }
 
     val releaseKeystorePath = System.getenv("PLAY_REDIRECT_KEYSTORE")

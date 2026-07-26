@@ -122,7 +122,8 @@
                     android:textStyle="bold"
                     android:textSize="14sp" />
 
-                <com.google.android.material.materialswitch.MaterialSwitch
+                <!-- SwitchCompat: stable with Theme.MaterialComponents (MaterialSwitch crashes without M3 theme) -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/debugSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

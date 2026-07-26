@@ -174,7 +174,8 @@ object DebugLog {
             return "<redacted>"
         }
         return try {
-            val v = bundle.get(key)
+            @Suppress("DEPRECATION")
+            val v: Any? = bundle.get(key)
             when (v) {
                 null -> "null"
                 is Bundle -> "Bundle(${v.keySet()})"
