@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- simple "open external" arrow on a tile -->
+    <path
+        android:fillColor="#7DD3FC"
+        android:pathData="M34,34h28v8H42v20h-8z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,42h24v24H50z" />
+    <path
+        android:fillColor="#0C4A6E"
+        android:pathData="M58,50h12v4H62v8h-4z" />
+</vector>

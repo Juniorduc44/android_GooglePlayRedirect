@@ -1,59 +1,47 @@
 # Project: google-play-redirect
 
-Scoped context for this specific tool. Inherits all rules and constraints
-from the workspace-level `AGENTS.md` — do not repeat those here, only what's
-specific to this project.
-
 ## What this tool does
 
-Intercepts or handles Google Play Store links (`market://`,
-`https://play.google.com/...`) and opens them in a browser (or another
-user-chosen FOSS-friendly destination) instead of launching the Play Store
-app. Aimed at GrapheneOS and other no-GMS setups where the Play Store is
-missing, sandboxed, or deliberately unused.
+On-device Android app that intercepts Google Play Store links
+(`market://`, `https://play.google.com/...`) and opens them in the system
+browser as HTTPS. Aimed at GrapheneOS where Play Store is absent or
+sandboxed.
+
+**User goal:** reduce friction on GrapheneOS when apps open Play links, and
+pair with GrapheneOS sandboxed Play for actual Google login APIs.
 
 ## Type
 
 - [x] On-device app
-- [ ] CLI / host-side script
-- [ ] ADB automation script
-- [ ] Other: ___
-
-(Host-side ADB helpers may be added later for install/test.)
 
 ## Root required?
 
-- [x] No (default — prefer this)
-- [ ] Yes — reason: ___
+- [x] No
 
 ## Status
 
-- [ ] Not started
-- [x] In progress
-- [ ] Working / testing
-- [ ] Shipped
+- [x] In progress / first build **v1.0.0**
 
-## What good looks like (specific to this tool)
+## Release artifacts
 
-- Registers as a handler for Play Store / market intents without GMS
-- Redirects to a browser with a usable URL (web Play page, or configurable
-  alternative such as Aurora/F-Droid search if we add that later)
-- Works with GrapheneOS network/sensor toggles revoked where irrelevant
-- Minimal permissions; no contacts/storage unless explicitly needed
-- Installable via sideload / Obtainium / F-Droid-style distribution (no Play
-  requirement to obtain the tool itself)
+- `dist/google-play-redirect-v1.0.0.apk`
+- `applicationId`: `com.juniorduc44.playredirect`
+- `versionName`: `1.0.0` / `versionCode`: `10000`
 
-## What to avoid (specific to this tool)
+## What good looks like
 
-- Embedding Play Integrity, Play Core, or billing libraries
-- Hard dependency on a specific browser package name without fallback
-- Silent drop of unhandled URL schemes — show a clear error or chooser
-- Assuming the Play Store package is installed for any part of the flow
+- Handles market + play.google.com without GMS
+- Browser chooser if no default browser
+- Clear in-app explanation of redirect vs sandboxed Play for Sign-In
+- Minimal permissions
 
-## Open questions / blockers
+## What to avoid
 
-- Preferred redirect target: plain `play.google.com` in browser, Aurora Store
-  deep link, F-Droid search, or user-configurable?
-- Should this be a tiny intent-filter-only app, or include a settings UI?
-- Min SDK / target Pixel generation for GrapheneOS testing?
-- Device not yet visible via `adb devices` in the current dev environment
+- Play Integrity / billing / GMS SDKs
+- Assuming Play Store package is installed
+- Claiming this alone “fixes Google login” without sandboxed Play
+
+## Open questions
+
+- Later: optional redirect targets (Aurora Store, F-Droid search)
+- Later: per-host toggles in settings
