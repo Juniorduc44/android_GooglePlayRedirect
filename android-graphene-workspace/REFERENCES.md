@@ -50,6 +50,7 @@ something is the way it is, instead of re-litigating it.
 | 2026-07-26 | php-usd-converter **v1.1.0** adds swap direction | Minor feature: ⇄ toggles PHP→USD / USD→PHP; versionCode 10100 |
 | 2026-07-26 | php-usd-converter **v1.1.1** swap re-fetches rate | Patch: swap uses same live-rate path as app start; versionCode 10101 |
 | 2026-07-26 | google-play-redirect v1.0.0: market/play → browser | No GMS; complements sandboxed Play for Sign-In, does not replace it |
+| 2026-07-26 | google-play-redirect v1.1.0: debug mode + SAF export | Logs intents to this app only; user picks save path |
 
 
 ## Notes

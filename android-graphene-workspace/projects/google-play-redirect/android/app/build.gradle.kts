@@ -11,8 +11,8 @@ android {
         applicationId = "com.juniorduc44.playredirect"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10000
-        versionName = "1.0.0"
+        versionCode = 10100
+        versionName = "1.1.0"
     }
 
     val releaseKeystorePath = System.getenv("PLAY_REDIRECT_KEYSTORE")
@@ -69,6 +69,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.activity:activity-ktx:1.9.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 }

@@ -34,7 +34,7 @@ Full checklist: [`android-graphene-workspace/VERSIONING.md`](android-graphene-wo
 
 | Project | Path | Status |
 |---|---|---|
-| google-play-redirect | `android-graphene-workspace/projects/google-play-redirect/` | **v1.0.0** (Play links → browser) |
+| google-play-redirect | `android-graphene-workspace/projects/google-play-redirect/` | **v1.1.0** (debug mode) |
 | php-usd-converter | `android-graphene-workspace/projects/php-usd-converter/` | **v1.1.1** shipped |
 
 Scaffold another tool:

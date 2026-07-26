@@ -5,73 +5,58 @@ browser** instead of requiring the Play Store app.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.0.0** (`versionCode` 10000) |
+| Android APK | **v1.1.0** (`versionCode` 10100) |
 | Package ID | `com.juniorduc44.playredirect` |
 | Min / target SDK | 26 / 34 |
 
-## Why this exists (GrapheneOS)
+## Debug mode (v1.1.0)
 
-On GrapheneOS, the Play Store is often **missing** or only present as an
-optional sandboxed install. Apps and links still fire `market://` and
-`play.google.com` intents. Without a handler, those actions fail or
-dead-end.
+1. Open **Play Redirect**
+2. Toggle **Enable debug logging**
+3. Trigger Play links (or tap **Test redirect**)
+4. Preview the log on screen
+5. Tap **Save debug log…** → Android file picker → pick **any folder/path** you want
+6. Optional: Clear / Refresh
 
-This app:
+### What is logged
 
-1. Registers for `market://`, `play.google.com`, and `market.android.com`
-2. Maps them to a normal **HTTPS** Play web URL
-3. Opens that URL with your **browser** (chooser)
+- Full inbound intents (`market://`, play.google.com, …)
+- Referrer / calling package when Android exposes them
+- URI, query params, extras (sensitive-looking keys redacted)
+- Redirect resolution and open success / failure
 
-### Important: Google **login** vs Play **links**
+### What is **not** logged (platform limit)
 
-| Need | What helps |
-|---|---|
-| Open / survive Play Store deep links | **This app** |
-| In-app **Google Sign-In** (GMS APIs) | GrapheneOS **sandboxed Google Play** (optional, from GrapheneOS App Store) |
+Google Sign-In UI **inside other apps** is not visible to a normal app on
+GrapheneOS without root or `adb logcat`. Debug mode records everything that
+**hits this app** so you can see who opened a Play link and what we did.
 
-Redirecting links does **not** install Play Services. Use both when you
-want browser fallbacks *and* Google login inside apps.
+## Why this exists
 
-## Features (v1.0.0)
+On GrapheneOS, Play Store is often missing. Apps still fire `market://` /
+`play.google.com` intents. This app maps them to HTTPS and opens the browser.
 
-- No GMS / Play Core / Integrity libraries
-- No `INTERNET` permission (browser does the network work)
-- Transparent `RedirectActivity` (no flashy UI on each link)
-- Main screen with setup steps + GrapheneOS notes
-- Test button, shortcuts to default-apps / app settings
+**Google login:** still use GrapheneOS optional **sandboxed Google Play** for
+GMS Sign-In APIs. This app handles **links**, not Play Services.
 
 ## APK
 
 ```text
-dist/google-play-redirect-v1.0.0.apk
+dist/google-play-redirect-v1.1.0.apk
 ```
 
 ```bash
-adb install -r dist/google-play-redirect-v1.0.0.apk
+adb install -r dist/google-play-redirect-v1.1.0.apk
 ```
 
-After install: when Android asks which app should open a Play link, pick
-**Play Redirect** and **Always** if you want it as default.
+## Changelog
 
-## Project layout
+### v1.1.0
+- Debug mode toggle
+- Intent / redirect logging to on-device file
+- Save log via system document picker (user chooses location)
+- Clear + preview UI
 
-```text
-google-play-redirect/
-├── README.md
-├── CONTEXT.md
-├── VERSION / VERSIONING.md
-├── dist/
-│   └── google-play-redirect-v1.0.0.apk
-└── android/          # Gradle / Kotlin
-```
-
-## Rebuild
-
-```bash
-cd android
-export PLAY_REDIRECT_KEYSTORE=app/release.keystore   # local, not in git
-# + password env vars per VERSIONING / build.gradle.kts
-./gradlew assembleRelease
-cp app/build/outputs/apk/release/app-release.apk \
-  ../dist/google-play-redirect-v$(cat ../VERSION).apk
-```
+### v1.0.0
+- market / play.google.com → browser
+- Help screen + setup shortcuts
