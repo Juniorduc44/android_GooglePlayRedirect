@@ -14,9 +14,9 @@ that shape every decision here.
 
 ## What we are building
 
-**php-usd-converter** (active host-side tool) — CustomTkinter desktop GUI
-that converts Philippine Peso (PHP) to US Dollar (USD) with a live
-exchange rate and offline fallback.
+**php-usd-converter** (active tool) — CustomTkinter desktop GUI and Android
+app that convert Philippine Peso (PHP) ↔ US Dollar (USD) with a live
+exchange rate, offline fallback, and a swap button for direction.
 
 Also tracked:
 
@@ -60,7 +60,7 @@ URLs should not force a dead-end or GMS dependency.
 | Project folder | What it is | Status |
 |---|---|---|
 | `projects/_template/` | Template to copy for new tools | n/a |
-| `projects/php-usd-converter/` | PHP → USD desktop + Android APK **v1.0.0** | shipped |
+| `projects/php-usd-converter/` | PHP ↔ USD (swap + rate refresh on swap) **v1.1.1** | shipped |
 | `projects/google-play-redirect/` | Redirect Play Store links to browser | in progress |
 
 To start a new tool: copy `projects/_template/` to `projects/<your-tool-name>/`

@@ -1,17 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PHP to USD</string>
+    <string name="app_name">PHP ↔ USD</string>
     <string name="title">Currency Converter</string>
-    <string name="subtitle">Philippine Peso (PHP)  →  US Dollar (USD)</string>
-    <string name="amount_label">Amount in Pesos (₱):</string>
-    <string name="amount_hint">e.g., 1000</string>
-    <string name="convert">Convert to USD</string>
-    <string name="default_result">$0.00 USD</string>
+    <string name="subtitle_php_to_usd">Philippine Peso (PHP)  →  US Dollar (USD)</string>
+    <string name="subtitle_usd_to_php">US Dollar (USD)  →  Philippine Peso (PHP)</string>
+    <string name="amount_label_php">Amount in Pesos (₱):</string>
+    <string name="amount_label_usd">Amount in Dollars ($):</string>
+    <string name="amount_hint_php">e.g., 1000</string>
+    <string name="amount_hint_usd">e.g., 20</string>
+    <string name="convert_to_usd">Convert to USD</string>
+    <string name="convert_to_php">Convert to PHP</string>
+    <string name="swap">⇄ Swap</string>
+    <string name="swap_content_description">Swap conversion direction</string>
+    <string name="default_result_usd">$0.00 USD</string>
+    <string name="default_result_php">₱0.00 PHP</string>
     <string name="enter_amount">Please enter an amount.</string>
     <string name="invalid_input">Invalid Input</string>
     <string name="invalid_hint">Please enter a valid positive number.</string>
-    <string name="rate_fmt">Rate: 1 PHP = $%1$.4f USD</string>
-    <string name="result_fmt">$%1$,.2f USD</string>
+    <string name="rate_php_to_usd">Rate: 1 PHP = $%1$.4f USD</string>
+    <string name="rate_usd_to_php">Rate: 1 USD = ₱%1$.2f PHP</string>
     <string name="fetching_rate">Fetching live rate…</string>
     <string name="using_fallback">Using offline fallback rate</string>
 </resources>

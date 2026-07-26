@@ -17,7 +17,11 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private var exchangeRate: Double = FALLBACK_RATE
+    /** PHP per 1 unit of base; stored as USD per 1 PHP (same as API). */
+    private var phpToUsdRate: Double = FALLBACK_RATE
+    private var rateIsLive: Boolean = false
+    /** true = PHP → USD; false = USD → PHP */
+    private var phpToUsd: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,8 +30,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.versionLabel.text = "v${BuildConfig.VERSION_NAME}"
         binding.rateInfoLabel.text = getString(R.string.fetching_rate)
+        applyDirectionLabels()
 
         binding.convertButton.setOnClickListener { convertCurrency() }
+        binding.swapButton.setOnClickListener { swapDirection() }
         binding.amountEntry.imeOptions = EditorInfo.IME_ACTION_DONE
         binding.amountEntry.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_GO) {
@@ -40,15 +46,61 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             val (rate, live) = fetchLiveRate()
-            exchangeRate = rate
-            updateRateLabel(live)
+            phpToUsdRate = rate
+            rateIsLive = live
+            updateRateLabel()
         }
     }
 
-    private fun updateRateLabel(live: Boolean) {
-        val base = getString(R.string.rate_fmt, exchangeRate)
+    private fun swapDirection() {
+        phpToUsd = !phpToUsd
+        applyDirectionLabels()
+        binding.rateInfoLabel.text = getString(R.string.fetching_rate)
         binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
-        binding.rateInfoLabel.text = if (live) {
+        // Same as startup: re-fetch live rate so swap also refreshes the quote
+        lifecycleScope.launch {
+            val (rate, live) = fetchLiveRate()
+            phpToUsdRate = rate
+            rateIsLive = live
+            updateRateLabel()
+            // Re-run conversion if there is already an amount
+            val raw = binding.amountEntry.text?.toString()?.trim().orEmpty()
+            if (raw.isNotEmpty()) {
+                convertCurrency()
+            } else {
+                binding.resultLabel.text = if (phpToUsd) {
+                    getString(R.string.default_result_usd)
+                } else {
+                    getString(R.string.default_result_php)
+                }
+                binding.resultLabel.setTextColor(Color.parseColor("#3B82F6"))
+            }
+        }
+    }
+
+    private fun applyDirectionLabels() {
+        if (phpToUsd) {
+            binding.subtitleLabel.setText(R.string.subtitle_php_to_usd)
+            binding.inputLabel.setText(R.string.amount_label_php)
+            binding.amountEntry.setHint(R.string.amount_hint_php)
+            binding.convertButton.setText(R.string.convert_to_usd)
+        } else {
+            binding.subtitleLabel.setText(R.string.subtitle_usd_to_php)
+            binding.inputLabel.setText(R.string.amount_label_usd)
+            binding.amountEntry.setHint(R.string.amount_hint_usd)
+            binding.convertButton.setText(R.string.convert_to_php)
+        }
+    }
+
+    private fun updateRateLabel() {
+        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
+        val base = if (phpToUsd) {
+            getString(R.string.rate_php_to_usd, phpToUsdRate)
+        } else {
+            val usdToPhp = if (phpToUsdRate > 0) 1.0 / phpToUsdRate else 0.0
+            getString(R.string.rate_usd_to_php, usdToPhp)
+        }
+        binding.rateInfoLabel.text = if (rateIsLive) {
             base
         } else {
             "$base · ${getString(R.string.using_fallback)}"
@@ -59,15 +111,19 @@ class MainActivity : AppCompatActivity() {
         val raw = binding.amountEntry.text?.toString()?.trim().orEmpty()
 
         if (raw.isEmpty()) {
-            binding.resultLabel.text = getString(R.string.default_result)
+            binding.resultLabel.text = if (phpToUsd) {
+                getString(R.string.default_result_usd)
+            } else {
+                getString(R.string.default_result_php)
+            }
             binding.resultLabel.setTextColor(Color.parseColor("#3B82F6"))
             binding.rateInfoLabel.text = getString(R.string.enter_amount)
             binding.rateInfoLabel.setTextColor(Color.parseColor("#EF4444"))
             return
         }
 
-        val phpAmount = raw.toDoubleOrNull()
-        if (phpAmount == null || phpAmount < 0.0) {
+        val amount = raw.toDoubleOrNull()
+        if (amount == null || amount < 0.0) {
             binding.resultLabel.text = getString(R.string.invalid_input)
             binding.resultLabel.setTextColor(Color.parseColor("#EF4444"))
             binding.rateInfoLabel.text = getString(R.string.invalid_hint)
@@ -75,11 +131,15 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val usd = phpAmount * exchangeRate
-        binding.resultLabel.text = String.format(Locale.US, "$%,.2f USD", usd)
+        if (phpToUsd) {
+            val usd = amount * phpToUsdRate
+            binding.resultLabel.text = String.format(Locale.US, "$%,.2f USD", usd)
+        } else {
+            val php = if (phpToUsdRate > 0) amount / phpToUsdRate else 0.0
+            binding.resultLabel.text = String.format(Locale.US, "₱%,.2f PHP", php)
+        }
         binding.resultLabel.setTextColor(Color.parseColor("#10B981"))
-        binding.rateInfoLabel.text = getString(R.string.rate_fmt, exchangeRate)
-        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
+        updateRateLabel()
     }
 
     private suspend fun fetchLiveRate(): Pair<Double, Boolean> = withContext(Dispatchers.IO) {

@@ -47,6 +47,8 @@ something is the way it is, instead of re-litigating it.
 | 2026-07-26 | No root; no GMS/Play Integrity for this app | GrapheneOS defaults; tool exists specifically to avoid Play Store dependency |
 | 2026-07-26 | Host tool `php-usd-converter` uses CustomTkinter + requests | User-provided GUI; live rate from exchangerate-api.com with offline fallback 0.0175 |
 | 2026-07-26 | Single APK name: `php-usd-converter-vX.Y.Z.apk` only | Drop short `vX.Y.Z.apk` aliases; SemVer major/minor/patch per project `VERSIONING.md` |
+| 2026-07-26 | php-usd-converter **v1.1.0** adds swap direction | Minor feature: ⇄ toggles PHP→USD / USD→PHP; versionCode 10100 |
+| 2026-07-26 | php-usd-converter **v1.1.1** swap re-fetches rate | Patch: swap uses same live-rate path as app start; versionCode 10101 |
 
 
 ## Notes

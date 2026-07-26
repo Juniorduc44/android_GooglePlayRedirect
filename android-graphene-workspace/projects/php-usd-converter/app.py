@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PHP to USD currency converter GUI (CustomTkinter)."""
+"""PHP ↔ USD currency converter GUI (CustomTkinter)."""
 
 import customtkinter as ctk
 import requests
@@ -14,15 +14,17 @@ class CurrencyConverterApp(ctk.CTk):
         super().__init__()
 
         # Configure Main Window
-        self.title("PHP to USD Converter")
-        self.geometry("400x480")
+        self.title("PHP ↔ USD Converter")
+        self.geometry("400x520")
         self.resizable(False, False)
 
-        # Application State
+        # Application State — rate is always "USD per 1 PHP"
         self.exchange_rate = self.get_live_rate()
+        self.php_to_usd = True
 
         # Build UI Components
         self._build_ui()
+        self._apply_direction_labels()
 
     def get_live_rate(self) -> float:
         """Fetch real-time PHP to USD rate with a fallback if offline."""
@@ -36,32 +38,81 @@ class CurrencyConverterApp(ctk.CTk):
             # Fallback approximate conversion rate
             return 0.0175
 
+    def swap_direction(self):
+        """Toggle conversion direction PHP↔USD and refresh the live rate.
+
+        Re-fetches the exchange rate the same way app startup does, so swap
+        doubles as a manual rate update without a separate refresh control.
+        """
+        self.php_to_usd = not self.php_to_usd
+        # Same path as startup: pull latest rate (or fallback if offline)
+        self.exchange_rate = self.get_live_rate()
+        self._apply_direction_labels()
+        raw = self.amount_entry.get().strip()
+        if raw:
+            self.convert_currency()
+        else:
+            if self.php_to_usd:
+                self.result_label.configure(text="$0.00 USD", text_color="#3B82F6")
+            else:
+                self.result_label.configure(text="₱0.00 PHP", text_color="#3B82F6")
+            self._show_rate_info()
+
+    def _apply_direction_labels(self):
+        if self.php_to_usd:
+            self.subtitle_label.configure(
+                text="Philippine Peso (PHP)  ➔  US Dollar (USD)"
+            )
+            self.input_label.configure(text="Amount in Pesos (₱):")
+            self.amount_entry.configure(placeholder_text="e.g., 1000")
+            self.convert_button.configure(text="Convert to USD")
+        else:
+            self.subtitle_label.configure(
+                text="US Dollar (USD)  ➔  Philippine Peso (PHP)"
+            )
+            self.input_label.configure(text="Amount in Dollars ($):")
+            self.amount_entry.configure(placeholder_text="e.g., 20")
+            self.convert_button.configure(text="Convert to PHP")
+        self._show_rate_info()
+
+    def _show_rate_info(self, color: str = "#9CA3AF"):
+        if self.php_to_usd:
+            text = f"Rate: 1 PHP = ${self.exchange_rate:.4f} USD"
+        else:
+            inv = (1.0 / self.exchange_rate) if self.exchange_rate else 0.0
+            text = f"Rate: 1 USD = ₱{inv:,.2f} PHP"
+        self.rate_info_label.configure(text=text, text_color=color)
+
     def convert_currency(self):
-        """Converts the entered PHP amount into USD."""
+        """Convert entered amount based on current direction."""
         raw_input = self.amount_entry.get().strip()
 
         if not raw_input:
-            self.result_label.configure(
-                text="$0.00 USD", text_color="#3B82F6"
-            )
+            if self.php_to_usd:
+                self.result_label.configure(text="$0.00 USD", text_color="#3B82F6")
+            else:
+                self.result_label.configure(text="₱0.00 PHP", text_color="#3B82F6")
             self.rate_info_label.configure(
                 text="Please enter an amount.", text_color="#EF4444"
             )
             return
 
         try:
-            php_amount = float(raw_input)
-            if php_amount < 0:
+            amount = float(raw_input)
+            if amount < 0:
                 raise ValueError("Negative number")
 
-            usd_amount = php_amount * self.exchange_rate
-            self.result_label.configure(
-                text=f"${usd_amount:,.2f} USD", text_color="#10B981"
-            )
-            self.rate_info_label.configure(
-                text=f"Rate: 1 PHP = ${self.exchange_rate:.4f} USD",
-                text_color="#9CA3AF",
-            )
+            if self.php_to_usd:
+                usd_amount = amount * self.exchange_rate
+                self.result_label.configure(
+                    text=f"${usd_amount:,.2f} USD", text_color="#10B981"
+                )
+            else:
+                php_amount = amount / self.exchange_rate if self.exchange_rate else 0.0
+                self.result_label.configure(
+                    text=f"₱{php_amount:,.2f} PHP", text_color="#10B981"
+                )
+            self._show_rate_info()
 
         except ValueError:
             self.result_label.configure(
@@ -111,10 +162,25 @@ class CurrencyConverterApp(ctk.CTk):
             height=45,
             font=ctk.CTkFont(size=16),
         )
-        self.amount_entry.pack(fill="x", padx=20, pady=(0, 15))
+        self.amount_entry.pack(fill="x", padx=20, pady=(0, 10))
         self.amount_entry.bind(
             "<Return>", lambda event: self.convert_currency()
         )
+
+        # Swap Button
+        self.swap_button = ctk.CTkButton(
+            self.card_frame,
+            text="⇄ Swap",
+            height=36,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color="transparent",
+            border_width=1,
+            border_color="#3B82F6",
+            text_color="#3B82F6",
+            hover_color="#1E293B",
+            command=self.swap_direction,
+        )
+        self.swap_button.pack(fill="x", padx=20, pady=5)
 
         # Convert Button
         self.convert_button = ctk.CTkButton(

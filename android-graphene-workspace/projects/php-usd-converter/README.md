@@ -1,11 +1,11 @@
 # php-usd-converter
 
-Converts **Philippine Peso (PHP)** to **US Dollar (USD)** using a live
-exchange rate, with an offline fallback.
+Converts **Philippine Peso (PHP)** ↔ **US Dollar (USD)** using a live
+exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.0.0** (`versionCode` 1) |
+| Android APK | **v1.1.1** (`versionCode` 10101) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -17,15 +17,20 @@ exchange rate, with an offline fallback.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-| Change type | Version bump | Example |
-|---|---|---|
-| Major | `MAJOR` +1, reset minor/patch | `v1.0.0` → `v2.0.0` |
-| Minor | `MINOR` +1, reset patch | `v1.0.0` → `v1.1.0` |
-| Patch | `PATCH` +1 | `v1.0.0` → `v1.0.1` |
-
-Current version file: [`VERSION`](./VERSION) → `1.0.0`
+Current version file: [`VERSION`](./VERSION) → `1.1.1`
 
 ### Changelog
+
+#### v1.1.1
+
+- **Swap refreshes rate:** ⇄ re-fetches the live rate (same as app start)
+- Patch over v1.1.0 swap feature
+
+#### v1.1.0
+
+- **Swap direction:** ⇄ button toggles PHP → USD and USD → PHP
+- Labels, convert action, result currency, and rate line update with direction
+- Desktop `app.py` gets the same swap behavior
 
 #### v1.0.0
 
@@ -36,10 +41,9 @@ Current version file: [`VERSION`](./VERSION) → `1.0.0`
 
 | Artifact | Path |
 |---|---|
-| **Release APK** | `dist/php-usd-converter-v1.0.0.apk` |
+| **Latest release APK** | `dist/php-usd-converter-v1.1.1.apk` |
+| Prior | `dist/php-usd-converter-v1.0.0.apk` |
 | Desktop GUI | `app.py` |
-
-One APK name only — no short aliases (`v1.0.0.apk`).
 
 ## Desktop app (CustomTkinter)
 
@@ -53,57 +57,22 @@ python app.py
 
 ## Android APK
 
-Native Kotlin port of the same converter:
+- Live rate on start; **⇄ Swap** also re-fetches the rate
+- Offline fallback: `0.0175` (USD per 1 PHP)
+- Bidirectional PHP ↔ USD
+- No Google Play Services; Internet permission only
 
-- Live rate: `https://api.exchangerate-api.com/v4/latest/PHP` → `rates.USD`
-- Offline fallback: `0.0175`
-- Dark UI (Material), no Google Play Services
-- Internet permission only
-
-### Install on device
-
-Download / sideload:
-
-```text
-dist/php-usd-converter-v1.0.0.apk
-```
-
-Or via ADB:
+### Install
 
 ```bash
-adb install -r dist/php-usd-converter-v1.0.0.apk
+adb install -r dist/php-usd-converter-v1.1.1.apk
 ```
 
-### Rebuild (see VERSIONING.md for full checklist)
+### Rebuild
 
 ```bash
-# After bumping versionName / versionCode in android/app/build.gradle.kts
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export ANDROID_HOME=../../../../tools/android-sdk   # adjust if needed
-cd android
-./gradlew assembleRelease
+cd android && ./gradlew assembleRelease
 VER=$(cat ../VERSION)
 cp app/build/outputs/apk/release/app-release.apk \
   "../dist/php-usd-converter-v${VER}.apk"
 ```
-
-## Project layout
-
-```text
-php-usd-converter/
-├── README.md
-├── VERSIONING.md          # SOP for major / minor / patch releases
-├── VERSION                # current X.Y.Z (no "v" prefix)
-├── CONTEXT.md
-├── app.py
-├── requirements.txt
-├── dist/
-│   └── php-usd-converter-v1.0.0.apk
-└── android/
-```
-
-## Notes
-
-- Desktop CustomTkinter cannot be packaged as an APK; Android is a native port.
-- No GMS / Play Integrity / Firebase.
-- Keystore is local / not in git; signed `dist/` APK is the shippable artifact.
