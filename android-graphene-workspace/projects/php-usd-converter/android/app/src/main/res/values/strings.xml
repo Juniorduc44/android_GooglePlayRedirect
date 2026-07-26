@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PHP to USD</string>
+    <string name="title">Currency Converter</string>
+    <string name="subtitle">Philippine Peso (PHP)  →  US Dollar (USD)</string>
+    <string name="amount_label">Amount in Pesos (₱):</string>
+    <string name="amount_hint">e.g., 1000</string>
+    <string name="convert">Convert to USD</string>
+    <string name="default_result">$0.00 USD</string>
+    <string name="enter_amount">Please enter an amount.</string>
+    <string name="invalid_input">Invalid Input</string>
+    <string name="invalid_hint">Please enter a valid positive number.</string>
+    <string name="rate_fmt">Rate: 1 PHP = $%1$.4f USD</string>
+    <string name="result_fmt">$%1$,.2f USD</string>
+    <string name="fetching_rate">Fetching live rate…</string>
+    <string name="using_fallback">Using offline fallback rate</string>
+</resources>

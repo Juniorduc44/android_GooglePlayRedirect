@@ -1,0 +1,41 @@
+# Local Android SDK / platform-tools (large; re-download if needed)
+tools/platform-tools/
+tools/android-sdk/
+tools/
+
+# Android / build
+**/build/
+**/.gradle/
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.gradle/
+local.properties
+*.iml
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.keystore
+*.jks
+
+# Keep released APK artifacts under project dist/
+*.apk
+!android-graphene-workspace/projects/*/dist/*.apk
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / OS
+*.swp
+*~
+.vscode/
+.cursor/
