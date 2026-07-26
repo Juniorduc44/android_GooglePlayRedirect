@@ -5,7 +5,7 @@ browser** instead of requiring the Play Store app.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.1.1** (`versionCode` 10101) |
+| Android APK | **v1.2.0** (`versionCode` 10200) |
 | Package ID | `com.juniorduc44.playredirect` |
 | Min / target SDK | 26 / 34 |
 
@@ -42,14 +42,21 @@ GMS Sign-In APIs. This app handles **links**, not Play Services.
 ## APK
 
 ```text
-dist/google-play-redirect-v1.1.1.apk
+dist/google-play-redirect-v1.2.0.apk
 ```
 
 ```bash
-adb install -r dist/google-play-redirect-v1.1.1.apk
+adb install -r dist/google-play-redirect-v1.2.0.apk
 ```
 
 ## Changelog
+
+### v1.2.0
+- Explain/fix **other apps → this app** (not a missing app permission)
+- Handler status: who owns `market://` / play.google.com
+- **Test as external link** (system chooser, like real apps)
+- **Open by default** settings shortcut
+- Higher intent-filter priority + package visibility queries
 
 ### v1.1.1
 - **Crash fix:** replace MaterialSwitch (requires Material3 theme) with SwitchCompat so the app starts under Theme.MaterialComponents

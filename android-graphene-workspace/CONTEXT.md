@@ -22,7 +22,7 @@ optional sandboxed Google Play for in-app Google Sign-In.
 Also tracked:
 
 **php-usd-converter** — PHP ↔ USD converter (desktop + Android), shipped
-**v1.1.1**.
+**v1.2.0**.
 
 ## Target device / environment
 
@@ -50,5 +50,5 @@ Also tracked:
 | Project folder | What it is | Status |
 |---|---|---|
 | `projects/_template/` | Template to copy for new tools | n/a |
-| `projects/google-play-redirect/` | Play links → browser + debug log export | **v1.1.1** |
-| `projects/php-usd-converter/` | PHP ↔ USD converter | shipped **v1.1.1** |
+| `projects/google-play-redirect/` | Play links → browser + debug log export | **v1.2.0** |
+| `projects/php-usd-converter/` | PHP ↔ USD converter | shipped **v1.2.0** |

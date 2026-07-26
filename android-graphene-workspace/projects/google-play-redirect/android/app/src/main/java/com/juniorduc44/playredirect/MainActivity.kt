@@ -2,6 +2,7 @@ package com.juniorduc44.playredirect
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
@@ -14,10 +15,11 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Help / status screen + debug controls.
+ * Help / diagnostics / debug.
  *
- * Debug mode logs Play/market intents that reach this app and lets the user
- * save the log to any location via the system document picker (SAF).
+ * External apps only reach RedirectActivity when Android resolves Play/market
+ * VIEW intents to this package — that is link-handler configuration, not an
+ * extra runtime permission we can request.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -57,7 +59,6 @@ class MainActivity : AppCompatActivity() {
 
         binding.versionLabel.text = "v${BuildConfig.VERSION_NAME}"
 
-        // --- Debug controls ---
         val debugOn = DebugPrefs.isDebugEnabled(this)
         binding.debugSwitch.isChecked = debugOn
         updateDebugPanelVisibility(debugOn)
@@ -72,9 +73,9 @@ class MainActivity : AppCompatActivity() {
             if (isChecked) {
                 DebugLog.sessionHeader(this, "debug enabled by user")
                 DebugLog.d(this, "UI", "Debug mode ON")
+                refreshHandlerStatus()
                 Toast.makeText(this, R.string.debug_enabled_toast, Toast.LENGTH_LONG).show()
             } else {
-                // one last line before silence (enable briefly to write)
                 DebugPrefs.setDebugEnabled(this, true)
                 DebugLog.d(this, "UI", "Debug mode OFF (logging stops)")
                 DebugPrefs.setDebugEnabled(this, false)
@@ -84,6 +85,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.saveDebugButton.setOnClickListener {
+            // Include latest handler status in the export
+            refreshHandlerStatus()
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
             val name = "play-redirect-debug-$stamp.txt"
             DebugLog.d(this, "EXPORT", "opening SAF create document name=$name")
@@ -100,53 +103,115 @@ class MainActivity : AppCompatActivity() {
             refreshDebugPreview()
         }
 
+        binding.checkHandlersButton.setOnClickListener {
+            refreshHandlerStatus()
+            Toast.makeText(this, "Handler status updated", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.openByDefaultButton.setOnClickListener {
+            openOpenByDefaultSettings()
+        }
+
+        // System-resolved market:// — same class of intent other apps use
+        binding.testExternalButton.setOnClickListener {
+            val demo = Uri.parse("market://details?id=com.android.chrome")
+            DebugLog.d(this, "UI", "Test EXTERNAL market:// VIEW (no setClass) demo=$demo")
+            val intent = Intent(Intent.ACTION_VIEW, demo).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addCategory(Intent.CATEGORY_DEFAULT)
+            }
+            try {
+                startActivity(intent)
+            } catch (t: Throwable) {
+                DebugLog.e(this, "UI", "external market VIEW failed", t)
+                Toast.makeText(this, t.message ?: "Failed", Toast.LENGTH_LONG).show()
+            }
+            binding.root.postDelayed({
+                refreshHandlerStatus()
+                refreshDebugPreview()
+            }, 500)
+        }
+
+        // Always works: explicit component inside our app
         binding.testRedirectButton.setOnClickListener {
             val demo = Uri.parse("market://details?id=com.android.chrome")
-            DebugLog.d(this, "UI", "Test redirect tapped demo=$demo")
-            // Route through our RedirectActivity so debug path matches real usage
-            val intent = Intent(this, RedirectActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                data = demo
-            }
-            startActivity(intent)
+            DebugLog.d(this, "UI", "Test IN-APP RedirectActivity demo=$demo")
+            startActivity(
+                Intent(this, RedirectActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = demo
+                }
+            )
             binding.root.postDelayed({ refreshDebugPreview() }, 400)
         }
 
         binding.openAppSettingsButton.setOnClickListener {
             DebugLog.d(this, "UI", "Open app settings")
-            val intent = Intent(
-                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", packageName, null)
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", packageName, null)
+                )
             )
-            startActivity(intent)
         }
 
         binding.openDefaultAppsButton.setOnClickListener {
             DebugLog.d(this, "UI", "Open default apps settings")
-            val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
             try {
-                startActivity(intent)
+                startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
             } catch (_: Exception) {
                 startActivity(Intent(Settings.ACTION_SETTINGS))
             }
         }
 
+        refreshHandlerStatus()
         refreshDebugPreview()
     }
 
     override fun onResume() {
         super.onResume()
+        refreshHandlerStatus()
         if (DebugPrefs.isDebugEnabled(this)) {
             DebugLog.d(this, "UI", "MainActivity.onResume")
             refreshDebugPreview()
         }
     }
 
+    private fun openOpenByDefaultSettings() {
+        DebugLog.d(this, "UI", "Open by default settings")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+                return
+            }
+        } catch (t: Throwable) {
+            DebugLog.e(this, "UI", "ACTION_APP_OPEN_BY_DEFAULT_SETTINGS failed", t)
+        }
+        // Fallback: app details (user can open “Open by default” from there)
+        startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null)
+            )
+        )
+    }
+
+    private fun refreshHandlerStatus() {
+        val report = LinkHandlerStatus.build(this)
+        binding.handlerStatusText.text = report.summary
+        DebugLog.d(this, "HANDLERS", report.summary)
+    }
+
     private fun updateDebugPanelVisibility(enabled: Boolean) {
         val vis = if (enabled) View.VISIBLE else View.GONE
         binding.debugActions.visibility = vis
         binding.debugPreviewCard.visibility = vis
-        binding.debugScopeNote.visibility = View.VISIBLE // always show honest scope note
+        binding.debugScopeNote.visibility = View.VISIBLE
     }
 
     private fun refreshDebugPreview() {
@@ -155,7 +220,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val all = DebugLog.readAll(this)
-        // Show last ~8k chars so UI stays light
         binding.debugPreview.text = if (all.length > 8000) {
             "…\n" + all.takeLast(8000)
         } else {

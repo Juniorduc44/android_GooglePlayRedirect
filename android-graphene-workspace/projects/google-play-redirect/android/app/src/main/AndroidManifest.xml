@@ -3,6 +3,31 @@
 
     <!-- No INTERNET required: we only hand URLs to the system browser. -->
 
+    <!-- Package visibility: so we can list other handlers for diagnostics -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="market" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="play.google.com" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" android:host="play.google.com" />
+        </intent>
+        <package android:name="com.android.vending" />
+        <package android:name="com.android.chrome" />
+        <package android:name="org.chromium.chrome" />
+        <package android:name="com.brave.browser" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="org.mozilla.fennec_fdroid" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -11,7 +36,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PlayRedirect">
 
-        <!-- Launcher / help screen -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -22,7 +46,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Transparent redirector for Play / market links -->
+        <!--
+          Receives Play / market VIEW intents from *other apps* when Android
+          resolves those links to us (user chose Always, or we are preferred).
+          priority high so we appear competitively in the chooser.
+        -->
         <activity
             android:name=".RedirectActivity"
             android:exported="true"
@@ -31,16 +59,14 @@
             android:theme="@style/Theme.PlayRedirect.Transparent"
             android:taskAffinity="">
 
-            <!-- market://details?id=... and other market:// paths -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="market" />
             </intent-filter>
 
-            <!-- https://play.google.com/... -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -48,8 +74,7 @@
                 <data android:scheme="http" android:host="play.google.com" />
             </intent-filter>
 
-            <!-- Common store.google.com short links -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
