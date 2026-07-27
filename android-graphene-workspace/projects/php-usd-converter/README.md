@@ -5,7 +5,7 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.3.2** (`versionCode` 10302) |
+| Android APK | **v1.4.0** (`versionCode` 10400) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -17,9 +17,14 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.3.2`
+Current version file: [`VERSION`](./VERSION) → `1.4.0`
 
 ### Changelog
+
+#### v1.4.0
+
+- **Weight tab:** convert **lb ↔ kg ↔ g** (adjacent unit cycle switch)
+- Result text size setting applies to weight results too
 
 #### v1.3.2
 
@@ -63,7 +68,7 @@ Current version file: [`VERSION`](./VERSION) → `1.3.2`
 
 | Artifact | Path |
 |---|---|
-| **Latest release APK** | `dist/php-usd-converter-v1.3.2.apk` |
+| **Latest release APK** | `dist/php-usd-converter-v1.4.0.apk` |
 | Prior | `v1.2.0`, `v1.1.1`, `v1.0.0` |
 | Desktop GUI | `app.py` |
 

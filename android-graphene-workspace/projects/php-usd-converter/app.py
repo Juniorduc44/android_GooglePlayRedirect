@@ -13,6 +13,22 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 KM_PER_MILE = 1.609344
+# International avoirdupois pound
+KG_PER_LB = 0.45359237
+G_PER_KG = 1000.0
+WEIGHT_UNITS = ("lb", "kg", "g")  # cycle order
+WEIGHT_LABELS = {
+    "lb": "Weight (lb):",
+    "kg": "Weight (kg):",
+    "g": "Weight (g):",
+}
+WEIGHT_NEXT = {"lb": "kg", "kg": "g", "g": "lb"}
+WEIGHT_SWITCH_TEXT = {"lb": "⇄ kg", "kg": "⇄ g", "g": "⇄ lb"}
+WEIGHT_PLACEHOLDER = {
+    "lb": "e.g., 150",
+    "kg": "e.g., 70",
+    "g": "e.g., 500",
+}
 SETTINGS_PATH = Path(__file__).resolve().parent / "user_settings.json"
 
 # Result text sizes (main result, secondary FX line)
@@ -62,11 +78,13 @@ class CurrencyConverterApp(ctk.CTk):
         self.php_to_usd = True  # Convert tab primary currency
         self.travel_php = True  # Travel tab primary currency (independent)
         self.use_km = True
+        self.weight_unit = "lb"  # input unit: lb | kg | g
 
         self._build_ui()
         self._apply_direction_labels()
         self._apply_distance_unit_labels()
         self._apply_travel_currency_labels()
+        self._apply_weight_unit_labels()
         self._apply_result_fonts()
 
     # ------------------------------------------------------------------ rate
@@ -100,6 +118,11 @@ class CurrencyConverterApp(ctk.CTk):
             font=ctk.CTkFont(size=main_sz, weight="bold")
         )
         self.travel_result_fx_label.configure(font=ctk.CTkFont(size=fx_sz))
+        if hasattr(self, "weight_result_label"):
+            self.weight_result_label.configure(
+                font=ctk.CTkFont(size=main_sz, weight="bold")
+            )
+            self.weight_result_secondary.configure(font=ctk.CTkFont(size=fx_sz))
         # Keep convert secondary line readable
         if hasattr(self, "rate_info_label"):
             self.rate_info_label.configure(
@@ -332,6 +355,100 @@ class CurrencyConverterApp(ctk.CTk):
                 msg = "Enter valid positive numbers."
             self.travel_status_label.configure(text=msg, text_color="#EF4444")
 
+    # --------------------------------------------------------------- weight
+    def _to_kg(self, value: float, unit: str) -> float:
+        if unit == "lb":
+            return value * KG_PER_LB
+        if unit == "kg":
+            return value
+        if unit == "g":
+            return value / G_PER_KG
+        raise ValueError(f"unknown unit {unit}")
+
+    def _from_kg(self, kg: float) -> dict[str, float]:
+        return {
+            "kg": kg,
+            "g": kg * G_PER_KG,
+            "lb": kg / KG_PER_LB if KG_PER_LB else 0.0,
+        }
+
+    def cycle_weight_unit(self):
+        """Cycle input unit lb → kg → g → lb; convert entered value when possible."""
+        raw = self.weight_entry.get().strip()
+        old = self.weight_unit
+        new = WEIGHT_NEXT[old]
+        if raw:
+            try:
+                val = float(raw)
+                if val >= 0:
+                    kg = self._to_kg(val, old)
+                    converted = self._from_kg(kg)[new]
+                    self.weight_entry.delete(0, "end")
+                    # more precision for grams
+                    fmt = f"{converted:.4f}".rstrip("0").rstrip(".")
+                    if new == "g" and converted >= 1:
+                        fmt = f"{converted:,.2f}"
+                    elif new == "g":
+                        fmt = f"{converted:.4f}".rstrip("0").rstrip(".")
+                    else:
+                        fmt = f"{converted:.4f}".rstrip("0").rstrip(".")
+                    self.weight_entry.insert(0, fmt)
+            except ValueError:
+                pass
+        self.weight_unit = new
+        self._apply_weight_unit_labels()
+        self.calculate_weight()
+
+    def _apply_weight_unit_labels(self):
+        self.weight_unit_label.configure(text=WEIGHT_LABELS[self.weight_unit])
+        self.weight_unit_button.configure(text=WEIGHT_SWITCH_TEXT[self.weight_unit])
+        self.weight_entry.configure(placeholder_text=WEIGHT_PLACEHOLDER[self.weight_unit])
+        self.weight_hint.configure(
+            text=f"Switch cycles units: lb → kg → g → lb  (input is {self.weight_unit})"
+        )
+
+    def calculate_weight(self, *_args):
+        raw = self.weight_entry.get().strip()
+        if not raw:
+            self.weight_result_label.configure(text="—", text_color="#3B82F6")
+            self.weight_result_secondary.configure(text="")
+            self.weight_status.configure(
+                text="Enter a weight to convert.", text_color="#9CA3AF"
+            )
+            return
+        try:
+            value = float(raw)
+            if value < 0:
+                raise ValueError("negative")
+            kg = self._to_kg(value, self.weight_unit)
+            all_u = self._from_kg(kg)
+
+            def fmt(u: str, v: float) -> str:
+                if u == "g":
+                    return f"{v:,.2f} g" if v >= 0.01 else f"{v:.6f} g"
+                if u == "kg":
+                    return f"{v:,.4f} kg"
+                return f"{v:,.4f} lb"
+
+            others = [u for u in WEIGHT_UNITS if u != self.weight_unit]
+            primary = fmt(others[0], all_u[others[0]])
+            secondary = fmt(others[1], all_u[others[1]])
+            input_fmt = fmt(self.weight_unit, all_u[self.weight_unit])
+            self.weight_result_label.configure(text=primary, text_color="#10B981")
+            self.weight_result_secondary.configure(
+                text=f"{secondary}\n(from {input_fmt})"
+            )
+            self.weight_status.configure(
+                text="lb ↔ kg ↔ g (1 lb = 0.45359237 kg exact)",
+                text_color="#9CA3AF",
+            )
+        except ValueError:
+            self.weight_result_label.configure(text="Invalid input", text_color="#EF4444")
+            self.weight_result_secondary.configure(text="")
+            self.weight_status.configure(
+                text="Enter a valid non-negative number.", text_color="#EF4444"
+            )
+
     # ------------------------------------------------------------------- UI
     def _build_ui(self):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -356,10 +473,12 @@ class CurrencyConverterApp(ctk.CTk):
         self.tabs.pack(pady=6, padx=12, fill="both", expand=True)
         self.tabs.add("Convert")
         self.tabs.add("Travel")
+        self.tabs.add("Weight")
         self.tabs.add("Settings")
 
         self._build_convert_tab(self.tabs.tab("Convert"))
         self._build_travel_tab(self.tabs.tab("Travel"))
+        self._build_weight_tab(self.tabs.tab("Weight"))
         self._build_settings_tab(self.tabs.tab("Settings"))
 
     def _build_convert_tab(self, parent):
@@ -566,6 +685,87 @@ class CurrencyConverterApp(ctk.CTk):
             text_color="#9CA3AF",
         )
         self.travel_rate_label.pack(pady=(0, 12))
+
+    def _build_weight_tab(self, parent):
+        card = ctk.CTkFrame(parent, corner_radius=12)
+        card.pack(pady=8, padx=6, fill="both", expand=True)
+
+        self.weight_hint = ctk.CTkLabel(
+            card,
+            text="Switch cycles units: lb → kg → g → lb  (input is lb)",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+        )
+        self.weight_hint.pack(anchor="w", padx=16, pady=(14, 6))
+
+        # Label + unit cycle switch adjacent
+        w_row = ctk.CTkFrame(card, fg_color="transparent")
+        w_row.pack(fill="x", padx=16, pady=(6, 2))
+        self.weight_unit_label = ctk.CTkLabel(
+            w_row,
+            text="Weight (lb):",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.weight_unit_label.pack(side="left", anchor="w")
+        self.weight_unit_button = ctk.CTkButton(
+            w_row,
+            text="⇄ kg",
+            width=72,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="transparent",
+            border_width=1,
+            border_color="#3B82F6",
+            text_color="#3B82F6",
+            hover_color="#1E293B",
+            command=self.cycle_weight_unit,
+        )
+        self.weight_unit_button.pack(side="right", padx=(8, 0))
+
+        self.weight_entry = ctk.CTkEntry(
+            card,
+            placeholder_text="e.g., 150",
+            height=42,
+            font=ctk.CTkFont(size=16),
+        )
+        self.weight_entry.pack(fill="x", padx=16, pady=(0, 4))
+        self.weight_entry.bind("<KeyRelease>", self.calculate_weight)
+        self.weight_entry.bind("<Return>", self.calculate_weight)
+
+        self.weight_calc_button = ctk.CTkButton(
+            card,
+            text="Convert weight",
+            height=40,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self.calculate_weight,
+        )
+        self.weight_calc_button.pack(fill="x", padx=16, pady=8)
+
+        result_box = ctk.CTkFrame(card, fg_color="#1E293B", corner_radius=8)
+        result_box.pack(fill="x", padx=16, pady=(8, 6))
+        self.weight_result_label = ctk.CTkLabel(
+            result_box,
+            text="—",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color="#3B82F6",
+        )
+        self.weight_result_label.pack(pady=(16, 4), padx=8)
+        self.weight_result_secondary = ctk.CTkLabel(
+            result_box,
+            text="",
+            font=ctk.CTkFont(size=14),
+            text_color="#E5E7EB",
+            justify="center",
+        )
+        self.weight_result_secondary.pack(pady=(0, 16), padx=8)
+
+        self.weight_status = ctk.CTkLabel(
+            card,
+            text="Enter a weight to convert.",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+        )
+        self.weight_status.pack(pady=(4, 12))
 
     def _build_settings_tab(self, parent):
         card = ctk.CTkFrame(parent, corner_radius=12)

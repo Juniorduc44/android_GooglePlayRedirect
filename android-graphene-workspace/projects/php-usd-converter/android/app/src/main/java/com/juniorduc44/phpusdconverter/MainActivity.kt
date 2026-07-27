@@ -29,6 +29,8 @@ class MainActivity : AppCompatActivity() {
     private var travelPhp: Boolean = true
     /** true = distance in km */
     private var useKm: Boolean = true
+    /** Weight input unit: lb | kg | g */
+    private var weightUnit: String = "lb"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,14 +42,19 @@ class MainActivity : AppCompatActivity() {
         applyDirectionLabels()
         applyTravelCurrencyLabels()
         applyDistanceUnitLabels()
+        applyWeightUnitLabels()
 
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_weight))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_settings))
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 binding.tabFlipper.displayedChild = tab.position
-                if (tab.position == 1) calculateTravel()
+                when (tab.position) {
+                    1 -> calculateTravel()
+                    2 -> calculateWeight()
+                }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
             override fun onTabReselected(tab: TabLayout.Tab?) {}
@@ -72,6 +79,14 @@ class MainActivity : AppCompatActivity() {
         }
         binding.distanceEntry.addTextChangedListener(travelWatcher)
         binding.travelCostEntry.addTextChangedListener(travelWatcher)
+
+        binding.weightUnitButton.setOnClickListener { cycleWeightUnit() }
+        binding.weightCalcButton.setOnClickListener { calculateWeight() }
+        binding.weightEntry.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { calculateWeight() }
+        })
 
         setupResultSizeSettings()
         applyResultTextSize()
@@ -142,6 +157,102 @@ class MainActivity : AppCompatActivity() {
         val size = ResultTextPrefs.get(this)
         ResultTextPrefs.apply(binding.resultLabel, null, size)
         ResultTextPrefs.apply(binding.travelResultLabel, binding.travelResultFxLabel, size)
+        ResultTextPrefs.apply(binding.weightResultLabel, binding.weightResultSecondary, size)
+    }
+
+    private fun cycleWeightUnit() {
+        val order = listOf("lb", "kg", "g")
+        val raw = binding.weightEntry.text?.toString()?.trim().orEmpty()
+        val old = weightUnit
+        val new = order[(order.indexOf(old) + 1) % order.size]
+        if (raw.isNotEmpty()) {
+            raw.toDoubleOrNull()?.takeIf { it >= 0 }?.let { v ->
+                val kg = toKg(v, old)
+                val converted = fromKg(kg)[new] ?: 0.0
+                val text = if (new == "g" && converted >= 1) {
+                    String.format(Locale.US, "%.2f", converted)
+                } else {
+                    String.format(Locale.US, "%.4f", converted).trimEnd('0').trimEnd('.')
+                }
+                binding.weightEntry.setText(text)
+                binding.weightEntry.setSelection(binding.weightEntry.text?.length ?: 0)
+            }
+        }
+        weightUnit = new
+        applyWeightUnitLabels()
+        calculateWeight()
+    }
+
+    private fun applyWeightUnitLabels() {
+        when (weightUnit) {
+            "kg" -> {
+                binding.weightUnitLabel.setText(R.string.weight_kg)
+                binding.weightUnitButton.setText(R.string.weight_switch_to_g)
+                binding.weightEntry.setHint(R.string.weight_hint_kg)
+            }
+            "g" -> {
+                binding.weightUnitLabel.setText(R.string.weight_g)
+                binding.weightUnitButton.setText(R.string.weight_switch_to_lb)
+                binding.weightEntry.setHint(R.string.weight_hint_g)
+            }
+            else -> {
+                binding.weightUnitLabel.setText(R.string.weight_lb)
+                binding.weightUnitButton.setText(R.string.weight_switch_to_kg)
+                binding.weightEntry.setHint(R.string.weight_hint_lb)
+            }
+        }
+        binding.weightHint.text =
+            getString(R.string.weight_hint) + "  (input is $weightUnit)"
+    }
+
+    private fun toKg(value: Double, unit: String): Double = when (unit) {
+        "lb" -> value * KG_PER_LB
+        "kg" -> value
+        "g" -> value / G_PER_KG
+        else -> value
+    }
+
+    private fun fromKg(kg: Double): Map<String, Double> = mapOf(
+        "kg" to kg,
+        "g" to kg * G_PER_KG,
+        "lb" to kg / KG_PER_LB
+    )
+
+    private fun formatWeight(unit: String, v: Double): String = when (unit) {
+        "g" -> if (v >= 0.01) String.format(Locale.US, "%,.2f g", v)
+        else String.format(Locale.US, "%.6f g", v)
+        "kg" -> String.format(Locale.US, "%,.4f kg", v)
+        else -> String.format(Locale.US, "%,.4f lb", v)
+    }
+
+    private fun calculateWeight() {
+        val raw = binding.weightEntry.text?.toString()?.trim().orEmpty()
+        if (raw.isEmpty()) {
+            binding.weightResultLabel.text = "—"
+            binding.weightResultLabel.setTextColor(Color.parseColor("#3B82F6"))
+            binding.weightResultSecondary.text = ""
+            binding.weightStatus.setText(R.string.weight_enter)
+            binding.weightStatus.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+        val value = raw.toDoubleOrNull()
+        if (value == null || value < 0) {
+            binding.weightResultLabel.text = getString(R.string.invalid_input)
+            binding.weightResultLabel.setTextColor(Color.parseColor("#EF4444"))
+            binding.weightResultSecondary.text = ""
+            binding.weightStatus.setText(R.string.weight_invalid)
+            binding.weightStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val all = fromKg(toKg(value, weightUnit))
+        val others = listOf("lb", "kg", "g").filter { it != weightUnit }
+        binding.weightResultLabel.text = formatWeight(others[0], all[others[0]]!!)
+        binding.weightResultLabel.setTextColor(Color.parseColor("#10B981"))
+        binding.weightResultSecondary.text =
+            formatWeight(others[1], all[others[1]]!!) +
+                "\n(from ${formatWeight(weightUnit, all[weightUnit]!!)})"
+        binding.weightStatus.setText(R.string.weight_note)
+        binding.weightStatus.setTextColor(Color.parseColor("#9CA3AF"))
     }
 
     private fun swapDirection() {
@@ -365,5 +476,7 @@ class MainActivity : AppCompatActivity() {
         private const val RATE_URL = "https://api.exchangerate-api.com/v4/latest/PHP"
         private const val FALLBACK_RATE = 0.0175
         private const val KM_PER_MILE = 1.609344
+        private const val KG_PER_LB = 0.45359237
+        private const val G_PER_KG = 1000.0
     }
 }

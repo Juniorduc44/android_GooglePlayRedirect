@@ -4,6 +4,7 @@
     <string name="title">Currency Converter</string>
     <string name="tab_convert">Convert</string>
     <string name="tab_travel">Travel</string>
+    <string name="tab_weight">Weight</string>
     <string name="subtitle_php_to_usd">Philippine Peso (PHP)  →  US Dollar (USD)</string>
     <string name="subtitle_usd_to_php">US Dollar (USD)  →  Philippine Peso (PHP)</string>
     <string name="amount_label_php">Amount in Pesos (₱):</string>
@@ -57,6 +58,21 @@
     <string name="travel_enter_both">Enter distance and trip cost.</string>
     <string name="travel_status_ok">Trip cost ÷ distance</string>
     <string name="travel_invalid">Enter valid numbers (distance &gt; 0).</string>
+
+    <string name="weight_hint">Switch cycles units: lb → kg → g → lb</string>
+    <string name="weight_lb">Weight (lb):</string>
+    <string name="weight_kg">Weight (kg):</string>
+    <string name="weight_g">Weight (g):</string>
+    <string name="weight_switch_to_kg">⇄ kg</string>
+    <string name="weight_switch_to_g">⇄ g</string>
+    <string name="weight_switch_to_lb">⇄ lb</string>
+    <string name="weight_hint_lb">e.g., 150</string>
+    <string name="weight_hint_kg">e.g., 70</string>
+    <string name="weight_hint_g">e.g., 500</string>
+    <string name="weight_convert">Convert weight</string>
+    <string name="weight_enter">Enter a weight to convert.</string>
+    <string name="weight_invalid">Enter a valid non-negative number.</string>
+    <string name="weight_note">lb ↔ kg ↔ g (1 lb = 0.45359237 kg exact)</string>
 
     <string name="tab_settings">Settings</string>
     <string name="settings_display">Display</string>
