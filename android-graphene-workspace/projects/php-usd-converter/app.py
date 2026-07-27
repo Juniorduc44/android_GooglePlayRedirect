@@ -797,12 +797,15 @@ class CurrencyConverterApp(ctk.CTk):
         labels = [BACKEND_LABELS[b] for b, _ in list_backends()]
         id_by_label = {BACKEND_LABELS[b]: b for b, _ in list_backends()}
         self._backend_id_by_label = id_by_label
-        active = self.secrets.get("active_backend", "offline")
-        active_label = BACKEND_LABELS.get(active, BACKEND_LABELS["offline"])
+        active = self.secrets.get("active_backend", "google")
+        # map legacy offline/free → google
+        if active in ("offline", "free", "deep"):
+            active = "google"
+        active_label = BACKEND_LABELS.get(active, BACKEND_LABELS["google"])
         self.translator_backend_menu = ctk.CTkOptionMenu(
             prov,
             values=labels,
-            width=200,
+            width=260,
             command=self._on_backend_change,
         )
         self.translator_backend_menu.set(active_label)
@@ -880,7 +883,7 @@ class CurrencyConverterApp(ctk.CTk):
         self._translator_refresh_status()
 
     def _on_backend_change(self, label: str):
-        bid = self._backend_id_by_label.get(label, "offline")
+        bid = self._backend_id_by_label.get(label, "google")
         self.secrets.set("active_backend", bid)
         self.secrets.save()
         self._translator_refresh_status()
@@ -1099,11 +1102,14 @@ class CurrencyConverterApp(ctk.CTk):
 
         ctk.CTkLabel(
             card,
-            text="Default backend: Free offline (no API key) on the Translator tab.\n"
-            "xAI needs team credits at https://console.x.ai/ (key alone is not enough).\n"
-            "Ollama (true local LLM): install from ollama.com, then\n"
-            "  ./scripts/setup_ollama_tiny.sh tinyllama\n"
-            "On-device MT (Opus-MT / llama.cpp) is planned — see docs/MOBILE_LLM_PLAN.md.",
+            text="Working backends (probe first):\n"
+            "  ./venv/bin/python scripts/probe_backends.py --phonics\n"
+            "Google free / MyMemory — no API key.\n"
+            "HF Opus-MT / T5 — download models from Hugging Face Hub (local).\n"
+            "HF Inference API — free HF token with Inference Providers permission.\n"
+            "xAI needs team credits at https://console.x.ai/\n"
+            "Ollama: ./scripts/setup_ollama_tiny.sh tinyllama\n"
+            "Gooble Phonics works on free backends via English IPA (eng-to-ipa).",
             font=ctk.CTkFont(size=11),
             text_color="#6B7280",
             justify="left",

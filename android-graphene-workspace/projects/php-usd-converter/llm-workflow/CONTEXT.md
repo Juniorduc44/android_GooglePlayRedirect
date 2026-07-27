@@ -40,4 +40,6 @@ Future (after Phase 1–2):
 ## Active languages
 
 Full list: `translator/languages.py` (goobleTranslator set).  
-First-class mobile pairs (to pack first): English, Spanish, Filipino/Tagalog, Japanese, Mandarin Chinese.
+First-class mobile pairs (to pack first): English, Spanish, **Filipino / Tagalog**, Japanese, Mandarin Chinese.
+
+Desktop language menu includes both **Filipino** and **Tagalog** (same Google `tl` / Opus `en-tl` path).

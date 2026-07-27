@@ -15,7 +15,7 @@
 | Free path (deep-translator) | HTTP MT (not on-device) | 0 (lib only) | Desktop translate without API key | **active** |
 | `tinyllama` (Ollama) | Chat GGUF via Ollama | ~600 MB | Desktop local chat translate | optional install |
 | Opus-MT en-es (TBD file) | Marian MT | ~50–300 MB | Pair MT (quality-per-MB win) | planned |
-| Opus-MT en-tl / others | Marian MT | ~50–300 MB each | Fixed pairs for travel languages | planned |
+| Opus-MT en-tl (`Helsinki-NLP/opus-mt-en-tl`) | Marian MT | ~50–300 MB | Filipino / Tagalog (desktop local HF) | wired |
 | NLLB-200-distilled-600M Q4 | GGUF | ~400 MB+ | Many-to-many | planned |
 | Gemma-3n E2B / E4B | LiteRT-LM | per Google guide | Alternate runtime only | optional later |
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULTS: dict[str, Any] = {
-    "active_backend": "offline",
+    "active_backend": "google",
     "ollama_base_url": "http://127.0.0.1:11434",
     "ollama_model": "tinyllama",
     "xai_api_key": "",
@@ -16,7 +16,8 @@ DEFAULTS: dict[str, Any] = {
     "openai_api_key": "",
     "openai_model": "gpt-4o-mini",
     "hf_token": "",
-    "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+    # Serverless translation model (needs Inference Providers permission on token)
+    "hf_model": "google-t5/t5-small",
 }
 
 

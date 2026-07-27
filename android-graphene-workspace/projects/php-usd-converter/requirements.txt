@@ -1,9 +1,15 @@
 customtkinter>=5.2.0
 requests>=2.31.0
 deep-translator>=1.11.4
+eng-to-ipa>=0.0.2
+# Local Hugging Face models (Opus-MT / T5) — loaded from Hub on first use
+transformers>=4.40
+sentencepiece>=0.2.0
+sacremoses>=0.1.1
+torch>=2.0.0
 # Optional: OpenAI Python SDK not required — backends use urllib/json HTTP.
-# Free path (no API key): deep-translator — network required, not on-device ML.
-# True local LLM: install Ollama separately, then:
-#   https://ollama.com/download
+# True local chat LLM: install Ollama separately, then:
 #   ./scripts/setup_ollama_tiny.sh tinyllama
-# On-device / Opus-MT / llama.cpp: see docs/MOBILE_LLM_PLAN.md
+# Probe all backends from CLI:
+#   ./venv/bin/python scripts/probe_backends.py --phonics
+# On-device / Opus-MT / llama.cpp mobile: see docs/MOBILE_LLM_PLAN.md
