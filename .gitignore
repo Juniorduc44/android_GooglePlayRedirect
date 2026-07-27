@@ -40,3 +40,5 @@ venv/
 .vscode/
 .cursor/
 user_settings.json
+vendor/
+secrets.json
