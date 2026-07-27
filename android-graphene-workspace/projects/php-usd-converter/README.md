@@ -5,7 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.4.0** (`versionCode` 10400) |
+| Desktop toolkit | **v1.5.0** (includes Translator) |
+| Android APK | **v1.4.0** convert/travel/weight (`versionCode` 10400) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -17,9 +18,18 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.4.0`
+Current version file: [`VERSION`](./VERSION) → `1.5.0`
 
 ### Changelog
+
+#### v1.5.0 (desktop)
+
+- **Translator tab** (from [goobleTranslator](https://github.com/Juniorduc44/goobleTranslator)): translate + phonics
+- AI backends: **Free offline (default, no API key)**, **Ollama**, **xAI/Grok**, **OpenAI**, **Hugging Face**
+- Secure `secrets.json` for API keys (gitignored); configure in Settings
+- Docs: `docs/TRANSLATOR_PLAN.md`, `docs/CUSTOMTKINTER.md`, `docs/MOBILE_LLM_PLAN.md`, `llm-workflow/`
+- Script: `scripts/setup_ollama_tiny.sh` for a small local model
+- **No release** until translate works end-to-end (xAI needs credits at console.x.ai)
 
 #### v1.4.0
 
@@ -74,6 +84,8 @@ Current version file: [`VERSION`](./VERSION) → `1.4.0`
 
 ## Desktop app (CustomTkinter)
 
+Tabs: **Convert** · **Travel** · **Weight** · **Translator** · **Settings**
+
 ```bash
 cd android-graphene-workspace/projects/php-usd-converter
 python3 -m venv .venv && source .venv/bin/activate
@@ -81,6 +93,19 @@ pip install -r requirements.txt
 # Debian/Ubuntu: sudo apt install python3-tk
 python app.py
 ```
+
+### Translator / AI backends
+
+| Backend | Needs | Notes |
+|---|---|---|
+| **Free offline (default)** | Network; `deep-translator` | No API key; plain MT only (no phonics) |
+| **Ollama (local LLM)** | Ollama + small model | `./scripts/setup_ollama_tiny.sh tinyllama` |
+| **xAI / Grok** | API key **and** team credits | Preferred cloud; 403 “no credits” ≠ bad key → https://console.x.ai/ |
+| **OpenAI** | API key | Compatible with original goobleTranslator workflow |
+| **Hugging Face** | Token + model id | Inference API |
+
+Keys are stored only in **`secrets.json`** (gitignored, chmod 600).  
+On-device MT plan (llama.cpp / Opus-MT / LiteRT-LM): `docs/MOBILE_LLM_PLAN.md` + `llm-workflow/`.
 
 ## Android APK
 

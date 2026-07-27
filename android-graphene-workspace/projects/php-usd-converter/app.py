@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import customtkinter as ctk
 import requests
+
+from translator import LANGUAGES, SecretsStore, get_backend, list_backends
+from translator.backends import BACKEND_LABELS
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -63,9 +67,9 @@ class CurrencyConverterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("PHP ↔ USD Converter")
-        self.geometry("440x640")
-        self.minsize(400, 560)
+        self.title("Toolkit — Convert · Travel · Weight · Translator")
+        self.geometry("520x720")
+        self.minsize(440, 600)
         self.resizable(True, True)
 
         self._settings = load_settings()
@@ -73,6 +77,8 @@ class CurrencyConverterApp(ctk.CTk):
         if size_key not in RESULT_SIZES:
             size_key = DEFAULT_RESULT_SIZE
         self.result_text_size = size_key
+        self.secrets = SecretsStore()
+        self._translator_busy = False
 
         self.exchange_rate = self.get_live_rate()
         self.php_to_usd = True  # Convert tab primary currency
@@ -474,11 +480,13 @@ class CurrencyConverterApp(ctk.CTk):
         self.tabs.add("Convert")
         self.tabs.add("Travel")
         self.tabs.add("Weight")
+        self.tabs.add("Translator")
         self.tabs.add("Settings")
 
         self._build_convert_tab(self.tabs.tab("Convert"))
         self._build_travel_tab(self.tabs.tab("Travel"))
         self._build_weight_tab(self.tabs.tab("Weight"))
+        self._build_translator_tab(self.tabs.tab("Translator"))
         self._build_settings_tab(self.tabs.tab("Settings"))
 
     def _build_convert_tab(self, parent):
@@ -767,22 +775,231 @@ class CurrencyConverterApp(ctk.CTk):
         )
         self.weight_status.pack(pady=(4, 12))
 
+    # ------------------------------------------------------------ translator
+    def _build_translator_tab(self, parent):
+        """Port of goobleTranslator: translate + optional phonics, multi-backend AI."""
+        scroll = ctk.CTkScrollableFrame(parent, corner_radius=12)
+        scroll.pack(pady=6, padx=4, fill="both", expand=True)
+        card = scroll
+
+        ctk.CTkLabel(
+            card,
+            text="Translator (from goobleTranslator)",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).pack(anchor="w", padx=10, pady=(8, 2))
+
+        # Provider row
+        prov = ctk.CTkFrame(card, fg_color="transparent")
+        prov.pack(fill="x", padx=10, pady=4)
+        ctk.CTkLabel(prov, text="AI backend:", font=ctk.CTkFont(size=12, weight="bold")).pack(
+            side="left"
+        )
+        labels = [BACKEND_LABELS[b] for b, _ in list_backends()]
+        id_by_label = {BACKEND_LABELS[b]: b for b, _ in list_backends()}
+        self._backend_id_by_label = id_by_label
+        active = self.secrets.get("active_backend", "offline")
+        active_label = BACKEND_LABELS.get(active, BACKEND_LABELS["offline"])
+        self.translator_backend_menu = ctk.CTkOptionMenu(
+            prov,
+            values=labels,
+            width=200,
+            command=self._on_backend_change,
+        )
+        self.translator_backend_menu.set(active_label)
+        self.translator_backend_menu.pack(side="left", padx=8)
+        self.translator_status = ctk.CTkLabel(
+            card, text="Checking backend…", font=ctk.CTkFont(size=11), text_color="#9CA3AF"
+        )
+        self.translator_status.pack(anchor="w", padx=12, pady=(0, 6))
+
+        ctk.CTkLabel(
+            card, text="Source text:", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=10, pady=(4, 2))
+        self.translator_input = ctk.CTkTextbox(card, height=90, wrap="word")
+        self.translator_input.pack(fill="x", padx=10, pady=2)
+
+        lang_row = ctk.CTkFrame(card, fg_color="transparent")
+        lang_row.pack(fill="x", padx=10, pady=6)
+        ctk.CTkLabel(lang_row, text="Translate to:", font=ctk.CTkFont(size=12)).pack(
+            side="left"
+        )
+        self.translator_lang = ctk.CTkOptionMenu(lang_row, values=LANGUAGES, width=180)
+        self.translator_lang.set("Spanish")
+        self.translator_lang.pack(side="left", padx=8)
+        self.translator_go_btn = ctk.CTkButton(
+            lang_row, text="Translate", width=100, command=self._translator_run_translate
+        )
+        self.translator_go_btn.pack(side="right")
+
+        ctk.CTkLabel(
+            card, text="Result:", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=10, pady=(6, 2))
+        self.translator_output = ctk.CTkTextbox(card, height=100, wrap="word")
+        self.translator_output.pack(fill="x", padx=10, pady=2)
+
+        phon_row = ctk.CTkFrame(card, fg_color="transparent")
+        phon_row.pack(fill="x", padx=10, pady=6)
+        ctk.CTkLabel(phon_row, text="Phonics as:", font=ctk.CTkFont(size=12)).pack(
+            side="left"
+        )
+        self.translator_phon_lang = ctk.CTkOptionMenu(
+            phon_row, values=LANGUAGES, width=180
+        )
+        self.translator_phon_lang.set("English")
+        self.translator_phon_lang.pack(side="left", padx=8)
+        self.translator_phon_btn = ctk.CTkButton(
+            phon_row, text="Phonics", width=100, command=self._translator_run_phonics
+        )
+        self.translator_phon_btn.pack(side="right")
+
+        btn_row = ctk.CTkFrame(card, fg_color="transparent")
+        btn_row.pack(fill="x", padx=10, pady=8)
+        ctk.CTkButton(
+            btn_row, text="Clear result", width=120, command=self._translator_clear
+        ).pack(side="left")
+        ctk.CTkButton(
+            btn_row,
+            text="Check backend",
+            width=120,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#3B82F6",
+            text_color="#3B82F6",
+            command=self._translator_refresh_status,
+        ).pack(side="left", padx=8)
+
+        ctk.CTkLabel(
+            card,
+            text="Set API keys / Ollama model in Settings. Keys are stored in secrets.json (gitignored).",
+            font=ctk.CTkFont(size=11),
+            text_color="#6B7280",
+            wraplength=460,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(4, 10))
+
+        self._translator_refresh_status()
+
+    def _on_backend_change(self, label: str):
+        bid = self._backend_id_by_label.get(label, "offline")
+        self.secrets.set("active_backend", bid)
+        self.secrets.save()
+        self._translator_refresh_status()
+
+    def _translator_refresh_status(self):
+        try:
+            backend = get_backend(self.secrets)
+            ok, msg = backend.available()
+            color = "#10B981" if ok else "#EF4444"
+            self.translator_status.configure(text=msg, text_color=color)
+        except Exception as e:
+            self.translator_status.configure(
+                text=f"Backend error: {e}", text_color="#EF4444"
+            )
+
+    def _translator_clear(self):
+        self.translator_output.delete("0.0", "end")
+
+    def _translator_set_busy(self, busy: bool):
+        self._translator_busy = busy
+        state = "disabled" if busy else "normal"
+        for w in (
+            self.translator_go_btn,
+            self.translator_phon_btn,
+            self.translator_backend_menu,
+        ):
+            try:
+                w.configure(state=state)
+            except Exception:
+                pass
+        if busy:
+            self.translator_status.configure(
+                text="Working… (AI call in background)", text_color="#FBBF24"
+            )
+
+    def _translator_run_translate(self):
+        if self._translator_busy:
+            return
+        text = self.translator_input.get("0.0", "end").strip()
+        lang = self.translator_lang.get()
+        if not text:
+            self.translator_status.configure(
+                text="Enter source text first.", text_color="#EF4444"
+            )
+            return
+        if lang not in LANGUAGES:
+            self.translator_status.configure(
+                text="Pick a target language.", text_color="#EF4444"
+            )
+            return
+
+        def work():
+            try:
+                backend = get_backend(self.secrets)
+                result = backend.translate(text, lang)
+                self.after(0, lambda: self._translator_show_result(result, ok=True))
+            except Exception as e:
+                err = str(e)
+                self.after(0, lambda: self._translator_show_result(err, ok=False))
+
+        self._translator_set_busy(True)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _translator_run_phonics(self):
+        if self._translator_busy:
+            return
+        # Prefer output text (translated); fall back to source
+        text = self.translator_output.get("0.0", "end").strip()
+        if not text:
+            text = self.translator_input.get("0.0", "end").strip()
+        lang = self.translator_phon_lang.get()
+        if not text:
+            self.translator_status.configure(
+                text="Translate first (or enter text), then run Phonics.",
+                text_color="#EF4444",
+            )
+            return
+
+        def work():
+            try:
+                backend = get_backend(self.secrets)
+                result = backend.phonetics(text, lang)
+                self.after(0, lambda: self._translator_show_result(result, ok=True, append=True))
+            except Exception as e:
+                err = str(e)
+                self.after(0, lambda: self._translator_show_result(err, ok=False))
+
+        self._translator_set_busy(True)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _translator_show_result(self, text: str, ok: bool, append: bool = False):
+        self._translator_set_busy(False)
+        if ok:
+            if not append:
+                self.translator_output.delete("0.0", "end")
+            else:
+                self.translator_output.insert("end", "\n\n— phonics —\n")
+            self.translator_output.insert("end" if append else "0.0", text)
+            self._translator_refresh_status()
+        else:
+            self.translator_status.configure(text=text[:400], text_color="#EF4444")
+
     def _build_settings_tab(self, parent):
-        card = ctk.CTkFrame(parent, corner_radius=12)
-        card.pack(pady=8, padx=6, fill="both", expand=True)
+        scroll = ctk.CTkScrollableFrame(parent, corner_radius=12)
+        scroll.pack(pady=8, padx=6, fill="both", expand=True)
+        card = scroll
 
         ctk.CTkLabel(
             card,
             text="Display",
             font=ctk.CTkFont(size=16, weight="bold"),
-        ).pack(anchor="w", padx=16, pady=(16, 8))
+        ).pack(anchor="w", padx=12, pady=(12, 8))
 
         ctk.CTkLabel(
             card,
-            text="Result text size (Convert + Travel cost-per-distance)",
+            text="Result text size (Convert + Travel + Weight)",
             font=ctk.CTkFont(size=13),
             text_color="#9CA3AF",
-        ).pack(anchor="w", padx=16, pady=(0, 8))
+        ).pack(anchor="w", padx=12, pady=(0, 8))
 
         self.size_var = ctk.StringVar(value=self.result_text_size)
         for key in RESULT_SIZES:
@@ -793,7 +1010,7 @@ class CurrencyConverterApp(ctk.CTk):
                 value=key,
                 command=lambda k=key: self.set_result_text_size(k),
                 font=ctk.CTkFont(size=14),
-            ).pack(anchor="w", padx=24, pady=4)
+            ).pack(anchor="w", padx=20, pady=4)
 
         self.settings_status = ctk.CTkLabel(
             card,
@@ -801,16 +1018,127 @@ class CurrencyConverterApp(ctk.CTk):
             font=ctk.CTkFont(size=12),
             text_color="#9CA3AF",
         )
-        self.settings_status.pack(anchor="w", padx=16, pady=(16, 8))
+        self.settings_status.pack(anchor="w", padx=12, pady=(12, 8))
+
+        # --- AI / Translator secrets ---
+        ctk.CTkLabel(
+            card,
+            text="AI provider (Translator)",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(16, 6))
 
         ctk.CTkLabel(
             card,
-            text="Tip: Travel tab scrolls if the window is small.\n"
-            "Use Large or Extra large if cost-per-km is hard to read.",
-            font=ctk.CTkFont(size=12),
+            text="Keys are saved only in secrets.json (gitignored, mode 600). Never commit them.",
+            font=ctk.CTkFont(size=11),
+            text_color="#6B7280",
+            wraplength=440,
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        # Ollama
+        ctk.CTkLabel(card, text="Ollama base URL", font=ctk.CTkFont(size=12, weight="bold")).pack(
+            anchor="w", padx=12
+        )
+        self.set_ollama_url = ctk.CTkEntry(card, height=32)
+        self.set_ollama_url.insert(0, str(self.secrets.get("ollama_base_url", "")))
+        self.set_ollama_url.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(card, text="Ollama model (e.g. tinyllama)", font=ctk.CTkFont(size=12, weight="bold")).pack(
+            anchor="w", padx=12, pady=(6, 0)
+        )
+        self.set_ollama_model = ctk.CTkEntry(card, height=32)
+        self.set_ollama_model.insert(0, str(self.secrets.get("ollama_model", "tinyllama")))
+        self.set_ollama_model.pack(fill="x", padx=12, pady=2)
+
+        # xAI
+        ctk.CTkLabel(
+            card,
+            text=f"xAI / Grok API key  {SecretsStore.mask_key(str(self.secrets.get('xai_api_key') or ''))}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 0))
+        self.set_xai_key = ctk.CTkEntry(card, height=32, placeholder_text="xai-… (leave blank to keep)")
+        self.set_xai_key.pack(fill="x", padx=12, pady=2)
+        self.set_xai_model = ctk.CTkEntry(card, height=32, placeholder_text="model e.g. grok-4.5")
+        self.set_xai_model.insert(0, str(self.secrets.get("xai_model", "grok-4.5")))
+        self.set_xai_model.pack(fill="x", padx=12, pady=2)
+
+        # OpenAI
+        ctk.CTkLabel(
+            card,
+            text=f"OpenAI API key  {SecretsStore.mask_key(str(self.secrets.get('openai_api_key') or ''))}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 0))
+        self.set_openai_key = ctk.CTkEntry(card, height=32, placeholder_text="sk-… (leave blank to keep)")
+        self.set_openai_key.pack(fill="x", padx=12, pady=2)
+        self.set_openai_model = ctk.CTkEntry(card, height=32)
+        self.set_openai_model.insert(0, str(self.secrets.get("openai_model", "gpt-4o-mini")))
+        self.set_openai_model.pack(fill="x", padx=12, pady=2)
+
+        # HF
+        ctk.CTkLabel(
+            card,
+            text=f"Hugging Face token  {SecretsStore.mask_key(str(self.secrets.get('hf_token') or ''))}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 0))
+        self.set_hf_token = ctk.CTkEntry(card, height=32, placeholder_text="hf_… (leave blank to keep)")
+        self.set_hf_token.pack(fill="x", padx=12, pady=2)
+        self.set_hf_model = ctk.CTkEntry(card, height=32)
+        self.set_hf_model.insert(
+            0, str(self.secrets.get("hf_model", "meta-llama/Llama-3.2-3B-Instruct"))
+        )
+        self.set_hf_model.pack(fill="x", padx=12, pady=2)
+
+        ctk.CTkButton(
+            card, text="Save AI settings", command=self._save_ai_settings, height=36
+        ).pack(fill="x", padx=12, pady=12)
+
+        self.ai_settings_status = ctk.CTkLabel(
+            card, text="", font=ctk.CTkFont(size=12), text_color="#9CA3AF"
+        )
+        self.ai_settings_status.pack(anchor="w", padx=12, pady=(0, 8))
+
+        ctk.CTkLabel(
+            card,
+            text="Default backend: Free offline (no API key) on the Translator tab.\n"
+            "xAI needs team credits at https://console.x.ai/ (key alone is not enough).\n"
+            "Ollama (true local LLM): install from ollama.com, then\n"
+            "  ./scripts/setup_ollama_tiny.sh tinyllama\n"
+            "On-device MT (Opus-MT / llama.cpp) is planned — see docs/MOBILE_LLM_PLAN.md.",
+            font=ctk.CTkFont(size=11),
             text_color="#6B7280",
             justify="left",
-        ).pack(anchor="w", padx=16, pady=(8, 16))
+        ).pack(anchor="w", padx=12, pady=(4, 16))
+
+    def _save_ai_settings(self):
+        self.secrets.set("ollama_base_url", self.set_ollama_url.get().strip())
+        self.secrets.set("ollama_model", self.set_ollama_model.get().strip() or "tinyllama")
+        xai = self.set_xai_key.get().strip()
+        if xai:
+            self.secrets.set("xai_api_key", xai)
+        self.secrets.set("xai_model", self.set_xai_model.get().strip() or "grok-4.5")
+        oai = self.set_openai_key.get().strip()
+        if oai:
+            self.secrets.set("openai_api_key", oai)
+        self.secrets.set(
+            "openai_model", self.set_openai_model.get().strip() or "gpt-4o-mini"
+        )
+        hf = self.set_hf_token.get().strip()
+        if hf:
+            self.secrets.set("hf_token", hf)
+        self.secrets.set(
+            "hf_model",
+            self.set_hf_model.get().strip() or "meta-llama/Llama-3.2-3B-Instruct",
+        )
+        self.secrets.save()
+        # clear password fields after save
+        self.set_xai_key.delete(0, "end")
+        self.set_openai_key.delete(0, "end")
+        self.set_hf_token.delete(0, "end")
+        self.ai_settings_status.configure(
+            text="AI settings saved to secrets.json", text_color="#10B981"
+        )
+        if hasattr(self, "translator_status"):
+            self._translator_refresh_status()
 
 
 if __name__ == "__main__":
