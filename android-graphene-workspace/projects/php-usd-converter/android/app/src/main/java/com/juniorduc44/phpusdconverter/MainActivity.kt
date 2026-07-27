@@ -2,9 +2,12 @@ package com.juniorduc44.phpusdconverter
 
 import android.graphics.Color
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.tabs.TabLayout
 import com.juniorduc44.phpusdconverter.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,11 +20,15 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    /** PHP per 1 unit of base; stored as USD per 1 PHP (same as API). */
+    /** USD per 1 PHP */
     private var phpToUsdRate: Double = FALLBACK_RATE
     private var rateIsLive: Boolean = false
-    /** true = PHP → USD; false = USD → PHP */
+    /** true = Convert tab primary currency PHP */
     private var phpToUsd: Boolean = true
+    /** true = Travel tab cost in PHP (independent of Convert) */
+    private var travelPhp: Boolean = true
+    /** true = distance in km */
+    private var useKm: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,18 +38,43 @@ class MainActivity : AppCompatActivity() {
         binding.versionLabel.text = "v${BuildConfig.VERSION_NAME}"
         binding.rateInfoLabel.text = getString(R.string.fetching_rate)
         applyDirectionLabels()
+        applyTravelCurrencyLabels()
+        applyDistanceUnitLabels()
+
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_settings))
+        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                binding.tabFlipper.displayedChild = tab.position
+                if (tab.position == 1) calculateTravel()
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
 
         binding.convertButton.setOnClickListener { convertCurrency() }
         binding.swapButton.setOnClickListener { swapDirection() }
         binding.amountEntry.imeOptions = EditorInfo.IME_ACTION_DONE
         binding.amountEntry.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_GO) {
-                convertCurrency()
-                true
-            } else {
-                false
-            }
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                convertCurrency(); true
+            } else false
         }
+
+        binding.unitSwitchButton.setOnClickListener { swapDistanceUnit() }
+        binding.travelCurrencyButton.setOnClickListener { swapTravelCurrency() }
+        binding.travelCalcButton.setOnClickListener { calculateTravel() }
+        val travelWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { calculateTravel() }
+        }
+        binding.distanceEntry.addTextChangedListener(travelWatcher)
+        binding.travelCostEntry.addTextChangedListener(travelWatcher)
+
+        setupResultSizeSettings()
+        applyResultTextSize()
 
         lifecycleScope.launch {
             val (rate, live) = fetchLiveRate()
@@ -52,18 +84,76 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun swapDirection() {
-        phpToUsd = !phpToUsd
-        applyDirectionLabels()
-        binding.rateInfoLabel.text = getString(R.string.fetching_rate)
-        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
-        // Same as startup: re-fetch live rate so swap also refreshes the quote
+    private fun swapTravelCurrency() {
+        travelPhp = !travelPhp
+        applyTravelCurrencyLabels()
+        binding.travelRateLabel.text = getString(R.string.fetching_rate)
         lifecycleScope.launch {
             val (rate, live) = fetchLiveRate()
             phpToUsdRate = rate
             rateIsLive = live
             updateRateLabel()
-            // Re-run conversion if there is already an amount
+            calculateTravel()
+        }
+    }
+
+    private fun applyTravelCurrencyLabels() {
+        if (travelPhp) {
+            binding.travelCurrencyHint.setText(R.string.travel_currency_php)
+            binding.travelCostLabel.setText(R.string.trip_cost_php)
+            binding.travelCostEntry.setHint(R.string.trip_cost_hint_php)
+            binding.travelCurrencyButton.setText(R.string.travel_price_usd)
+        } else {
+            binding.travelCurrencyHint.setText(R.string.travel_currency_usd)
+            binding.travelCostLabel.setText(R.string.trip_cost_usd)
+            binding.travelCostEntry.setHint(R.string.trip_cost_hint_usd)
+            binding.travelCurrencyButton.setText(R.string.travel_price_php)
+        }
+    }
+
+    private fun setupResultSizeSettings() {
+        when (ResultTextPrefs.get(this)) {
+            ResultTextPrefs.Size.SMALL -> binding.sizeSmall.isChecked = true
+            ResultTextPrefs.Size.MEDIUM -> binding.sizeMedium.isChecked = true
+            ResultTextPrefs.Size.LARGE -> binding.sizeLarge.isChecked = true
+            ResultTextPrefs.Size.EXTRA_LARGE -> binding.sizeXLarge.isChecked = true
+        }
+        binding.resultSizeGroup.setOnCheckedChangeListener { _, checkedId ->
+            val size = when (checkedId) {
+                R.id.sizeSmall -> ResultTextPrefs.Size.SMALL
+                R.id.sizeMedium -> ResultTextPrefs.Size.MEDIUM
+                R.id.sizeXLarge -> ResultTextPrefs.Size.EXTRA_LARGE
+                else -> ResultTextPrefs.Size.LARGE
+            }
+            ResultTextPrefs.set(this, size)
+            applyResultTextSize()
+            val label = when (size) {
+                ResultTextPrefs.Size.SMALL -> getString(R.string.size_small)
+                ResultTextPrefs.Size.MEDIUM -> getString(R.string.size_medium)
+                ResultTextPrefs.Size.LARGE -> getString(R.string.size_large)
+                ResultTextPrefs.Size.EXTRA_LARGE -> getString(R.string.size_xlarge)
+            }
+            binding.settingsStatus.text = getString(R.string.settings_size_saved, label)
+            binding.settingsStatus.setTextColor(Color.parseColor("#10B981"))
+        }
+    }
+
+    private fun applyResultTextSize() {
+        val size = ResultTextPrefs.get(this)
+        ResultTextPrefs.apply(binding.resultLabel, null, size)
+        ResultTextPrefs.apply(binding.travelResultLabel, binding.travelResultFxLabel, size)
+    }
+
+    private fun swapDirection() {
+        phpToUsd = !phpToUsd
+        applyDirectionLabels()
+        binding.rateInfoLabel.text = getString(R.string.fetching_rate)
+        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
+        lifecycleScope.launch {
+            val (rate, live) = fetchLiveRate()
+            phpToUsdRate = rate
+            rateIsLive = live
+            updateRateLabel()
             val raw = binding.amountEntry.text?.toString()?.trim().orEmpty()
             if (raw.isNotEmpty()) {
                 convertCurrency()
@@ -75,6 +165,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 binding.resultLabel.setTextColor(Color.parseColor("#3B82F6"))
             }
+            calculateTravel()
         }
     }
 
@@ -84,32 +175,32 @@ class MainActivity : AppCompatActivity() {
             binding.inputLabel.setText(R.string.amount_label_php)
             binding.amountEntry.setHint(R.string.amount_hint_php)
             binding.convertButton.setText(R.string.convert_to_usd)
+            binding.swapButton.setText(R.string.swap_to_usd)
         } else {
             binding.subtitleLabel.setText(R.string.subtitle_usd_to_php)
             binding.inputLabel.setText(R.string.amount_label_usd)
             binding.amountEntry.setHint(R.string.amount_hint_usd)
             binding.convertButton.setText(R.string.convert_to_php)
+            binding.swapButton.setText(R.string.swap_to_php)
         }
     }
 
     private fun updateRateLabel() {
-        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
         val base = if (phpToUsd) {
             getString(R.string.rate_php_to_usd, phpToUsdRate)
         } else {
             val usdToPhp = if (phpToUsdRate > 0) 1.0 / phpToUsdRate else 0.0
             getString(R.string.rate_usd_to_php, usdToPhp)
         }
-        binding.rateInfoLabel.text = if (rateIsLive) {
-            base
-        } else {
-            "$base · ${getString(R.string.using_fallback)}"
-        }
+        val text = if (rateIsLive) base else "$base · ${getString(R.string.using_fallback)}"
+        binding.rateInfoLabel.setTextColor(Color.parseColor("#9CA3AF"))
+        binding.rateInfoLabel.text = text
+        binding.travelRateLabel.setTextColor(Color.parseColor("#9CA3AF"))
+        binding.travelRateLabel.text = text
     }
 
     private fun convertCurrency() {
         val raw = binding.amountEntry.text?.toString()?.trim().orEmpty()
-
         if (raw.isEmpty()) {
             binding.resultLabel.text = if (phpToUsd) {
                 getString(R.string.default_result_usd)
@@ -121,7 +212,6 @@ class MainActivity : AppCompatActivity() {
             binding.rateInfoLabel.setTextColor(Color.parseColor("#EF4444"))
             return
         }
-
         val amount = raw.toDoubleOrNull()
         if (amount == null || amount < 0.0) {
             binding.resultLabel.text = getString(R.string.invalid_input)
@@ -130,15 +220,126 @@ class MainActivity : AppCompatActivity() {
             binding.rateInfoLabel.setTextColor(Color.parseColor("#EF4444"))
             return
         }
-
         if (phpToUsd) {
-            val usd = amount * phpToUsdRate
-            binding.resultLabel.text = String.format(Locale.US, "$%,.2f USD", usd)
+            binding.resultLabel.text =
+                String.format(Locale.US, "$%,.2f USD", amount * phpToUsdRate)
         } else {
             val php = if (phpToUsdRate > 0) amount / phpToUsdRate else 0.0
             binding.resultLabel.text = String.format(Locale.US, "₱%,.2f PHP", php)
         }
         binding.resultLabel.setTextColor(Color.parseColor("#10B981"))
+        updateRateLabel()
+    }
+
+    // --- Travel ---
+
+    private fun swapDistanceUnit() {
+        val raw = binding.distanceEntry.text?.toString()?.trim().orEmpty()
+        val oldUseKm = useKm
+        useKm = !useKm
+        if (raw.isNotEmpty()) {
+            raw.toDoubleOrNull()?.takeIf { it >= 0 }?.let { v ->
+                val converted = if (oldUseKm && !useKm) {
+                    v / KM_PER_MILE
+                } else if (!oldUseKm && useKm) {
+                    v * KM_PER_MILE
+                } else v
+                binding.distanceEntry.setText(String.format(Locale.US, "%.2f", converted))
+                binding.distanceEntry.setSelection(binding.distanceEntry.text?.length ?: 0)
+            }
+        }
+        applyDistanceUnitLabels()
+        calculateTravel()
+    }
+
+    private fun applyDistanceUnitLabels() {
+        if (useKm) {
+            binding.distanceUnitLabel.setText(R.string.distance_km)
+            binding.unitSwitchButton.setText(R.string.switch_to_miles)
+            binding.travelCalcButton.setText(R.string.calc_per_km)
+        } else {
+            binding.distanceUnitLabel.setText(R.string.distance_mi)
+            binding.unitSwitchButton.setText(R.string.switch_to_km)
+            binding.travelCalcButton.setText(R.string.calc_per_mi)
+        }
+    }
+
+    private fun updateDistanceEquiv(distance: Double?) {
+        if (distance == null || distance < 0) {
+            binding.distanceEquivLabel.text = ""
+            return
+        }
+        binding.distanceEquivLabel.text = if (useKm) {
+            getString(R.string.equiv_mi, distance / KM_PER_MILE)
+        } else {
+            getString(R.string.equiv_km, distance * KM_PER_MILE)
+        }
+        // subtle parentheses style in string already as ≈
+        binding.distanceEquivLabel.text = "(${binding.distanceEquivLabel.text})"
+    }
+
+    private fun calculateTravel() {
+        val distRaw = binding.distanceEntry.text?.toString()?.trim().orEmpty()
+        val costRaw = binding.travelCostEntry.text?.toString()?.trim().orEmpty()
+        val dist = distRaw.toDoubleOrNull()
+        updateDistanceEquiv(dist)
+
+        if (distRaw.isEmpty() || costRaw.isEmpty()) {
+            binding.travelResultLabel.text = if (useKm) {
+                getString(R.string.travel_result_placeholder_km)
+            } else {
+                getString(R.string.travel_result_placeholder_mi)
+            }
+            binding.travelResultLabel.setTextColor(Color.parseColor("#3B82F6"))
+            binding.travelResultFxLabel.text = ""
+            binding.travelCostFxLabel.text = ""
+            binding.travelStatusLabel.setText(R.string.travel_enter_both)
+            binding.travelStatusLabel.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+
+        val cost = costRaw.toDoubleOrNull()
+        if (dist == null || cost == null || dist <= 0.0 || cost < 0.0) {
+            binding.travelResultLabel.text = getString(R.string.invalid_input)
+            binding.travelResultLabel.setTextColor(Color.parseColor("#EF4444"))
+            binding.travelResultFxLabel.text = ""
+            binding.travelCostFxLabel.text = ""
+            binding.travelStatusLabel.setText(R.string.travel_invalid)
+            binding.travelStatusLabel.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+
+        val unit = if (useKm) "km" else "mi"
+        val per = cost / dist
+
+        if (travelPhp) {
+            val costUsd = cost * phpToUsdRate
+            val perUsd = per * phpToUsdRate
+            binding.travelCostFxLabel.text =
+                String.format(Locale.US, "(≈ $%,.2f USD)", costUsd)
+            binding.travelResultLabel.text = if (useKm) {
+                getString(R.string.travel_per_php_km, per)
+            } else {
+                getString(R.string.travel_per_php_mi, per)
+            }
+            binding.travelResultFxLabel.text =
+                String.format(Locale.US, "(≈ $%.2f USD / %s)", perUsd, unit)
+        } else {
+            val costPhp = if (phpToUsdRate > 0) cost / phpToUsdRate else 0.0
+            val perPhp = if (phpToUsdRate > 0) per / phpToUsdRate else 0.0
+            binding.travelCostFxLabel.text =
+                String.format(Locale.US, "(≈ ₱%,.2f PHP)", costPhp)
+            binding.travelResultLabel.text = if (useKm) {
+                getString(R.string.travel_per_usd_km, per)
+            } else {
+                getString(R.string.travel_per_usd_mi, per)
+            }
+            binding.travelResultFxLabel.text =
+                String.format(Locale.US, "(≈ ₱%.2f PHP / %s)", perPhp, unit)
+        }
+        binding.travelResultLabel.setTextColor(Color.parseColor("#10B981"))
+        binding.travelStatusLabel.setText(R.string.travel_status_ok)
+        binding.travelStatusLabel.setTextColor(Color.parseColor("#9CA3AF"))
         updateRateLabel()
     }
 
@@ -153,8 +354,7 @@ class MainActivity : AppCompatActivity() {
             conn.inputStream.bufferedReader().use { reader ->
                 val body = reader.readText()
                 val json = JSONObject(body)
-                val rate = json.getJSONObject("rates").getDouble("USD")
-                rate to true
+                json.getJSONObject("rates").getDouble("USD") to true
             }
         } catch (_: Exception) {
             FALLBACK_RATE to false
@@ -164,5 +364,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val RATE_URL = "https://api.exchangerate-api.com/v4/latest/PHP"
         private const val FALLBACK_RATE = 0.0175
+        private const val KM_PER_MILE = 1.609344
     }
 }

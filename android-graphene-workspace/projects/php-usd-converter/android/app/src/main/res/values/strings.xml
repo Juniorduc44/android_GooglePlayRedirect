@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">PHP ↔ USD</string>
     <string name="title">Currency Converter</string>
+    <string name="tab_convert">Convert</string>
+    <string name="tab_travel">Travel</string>
     <string name="subtitle_php_to_usd">Philippine Peso (PHP)  →  US Dollar (USD)</string>
     <string name="subtitle_usd_to_php">US Dollar (USD)  →  Philippine Peso (PHP)</string>
     <string name="amount_label_php">Amount in Pesos (₱):</string>
@@ -10,7 +12,9 @@
     <string name="amount_hint_usd">e.g., 20</string>
     <string name="convert_to_usd">Convert to USD</string>
     <string name="convert_to_php">Convert to PHP</string>
-    <string name="swap">⇄ Swap</string>
+    <string name="swap">⇄ Swap currency</string>
+    <string name="swap_to_usd">⇄ USD</string>
+    <string name="swap_to_php">⇄ PHP</string>
     <string name="swap_content_description">Swap conversion direction</string>
     <string name="default_result_usd">$0.00 USD</string>
     <string name="default_result_php">₱0.00 PHP</string>
@@ -21,4 +25,45 @@
     <string name="rate_usd_to_php">Rate: 1 USD = ₱%1$.2f PHP</string>
     <string name="fetching_rate">Fetching live rate…</string>
     <string name="using_fallback">Using offline fallback rate</string>
+
+    <!-- Travel -->
+    <string name="travel_currency_php">Enter cost in pesos; switch for dollars</string>
+    <string name="travel_currency_usd">Enter cost in dollars; switch for pesos</string>
+    <string name="travel_price_usd">⇄ USD</string>
+    <string name="travel_price_php">⇄ PHP</string>
+    <string name="distance_km">Distance (km):</string>
+    <string name="distance_mi">Distance (miles):</string>
+    <string name="distance_hint">e.g., 120</string>
+    <string name="equiv_mi">≈ %1$.2f mi</string>
+    <string name="equiv_km">≈ %1$.2f km</string>
+    <string name="switch_to_miles">⇄ mi</string>
+    <string name="switch_to_km">⇄ km</string>
+    <string name="trip_cost_php">Trip cost (₱ PHP):</string>
+    <string name="trip_cost_usd">Trip cost ($ USD):</string>
+    <string name="trip_cost_hint_php">e.g., 2500</string>
+    <string name="trip_cost_hint_usd">e.g., 45</string>
+    <string name="calc_per_km">Calculate cost per km</string>
+    <string name="calc_per_mi">Calculate cost per mile</string>
+    <string name="travel_result_placeholder_km">— / km</string>
+    <string name="travel_result_placeholder_mi">— / mi</string>
+    <string name="travel_per_php_km">₱%1$.2f / km</string>
+    <string name="travel_per_php_mi">₱%1$.2f / mi</string>
+    <string name="travel_per_usd_km">$%1$.2f / km</string>
+    <string name="travel_per_usd_mi">$%1$.2f / mi</string>
+    <string name="travel_fx_total_usd">(≈ $%1$,.2f USD)</string>
+    <string name="travel_fx_total_php">(≈ ₱%1$,.2f PHP)</string>
+    <string name="travel_fx_per_usd">(≈ $%1$.2f USD / %2$s)</string>
+    <string name="travel_fx_per_php">(≈ ₱%1$.2f PHP / %2$s)</string>
+    <string name="travel_enter_both">Enter distance and trip cost.</string>
+    <string name="travel_status_ok">Trip cost ÷ distance</string>
+    <string name="travel_invalid">Enter valid numbers (distance &gt; 0).</string>
+
+    <string name="tab_settings">Settings</string>
+    <string name="settings_display">Display</string>
+    <string name="settings_result_size_help">Result text size for Convert and Travel (cost per km / mile). Use Large or Extra large if results are hard to read.</string>
+    <string name="size_small">Small</string>
+    <string name="size_medium">Medium</string>
+    <string name="size_large">Large (default)</string>
+    <string name="size_xlarge">Extra large</string>
+    <string name="settings_size_saved">Result text size: %1$s (saved)</string>
 </resources>

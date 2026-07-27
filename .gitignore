@@ -39,3 +39,4 @@ venv/
 *~
 .vscode/
 .cursor/
+user_settings.json

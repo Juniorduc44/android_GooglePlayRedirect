@@ -8,11 +8,11 @@ Fixed fallback offline.
 
 ## Status
 
-- [x] Shipped (**v1.1.1** APK)
+- [x] Shipped (**v1.2.0** APK — Travel tab)
 
 ## Release artifacts
 
-- Latest: `dist/php-usd-converter-v1.1.1.apk`
-- Prior: `dist/php-usd-converter-v1.0.0.apk`
-- `versionName`: `1.1.1` / `versionCode`: `10101`
-- `VERSION` file: `1.1.1`
+- Latest: `dist/php-usd-converter-v1.2.0.apk`
+- Prior: `v1.1.1`, `v1.0.0`
+- `versionName`: `1.2.0` / `versionCode`: `10200`
+- `VERSION` file: `1.2.0`

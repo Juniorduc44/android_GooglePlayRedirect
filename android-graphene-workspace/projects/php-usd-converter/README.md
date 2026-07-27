@@ -5,7 +5,7 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Android APK | **v1.1.1** (`versionCode` 10101) |
+| Android APK | **v1.3.2** (`versionCode` 10302) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -17,9 +17,31 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.1.1`
+Current version file: [`VERSION`](./VERSION) → `1.3.2`
 
 ### Changelog
+
+#### v1.3.2
+
+- Travel switches sit **next to their labels**: `Distance (km):` + `⇄ mi`, `Trip cost (₱ PHP):` + `⇄ USD`
+
+#### v1.3.1
+
+- **Travel currency switch:** choose PHP or USD for trip cost inside the Travel tab (independent of Convert)
+
+#### v1.3.0
+
+- **Settings tab:** result text size Small / Medium / Large / Extra large
+- Larger default result fonts; Travel cost-per-km shown more prominently
+- Travel panel scrolls so results are not clipped
+- Preference saved (desktop: `user_settings.json`, Android: SharedPreferences)
+
+#### v1.2.0
+
+- **Travel tab:** distance (km/mi switch), trip cost, cost per km or mile
+- Subtle unit equivalents in parentheses (mi ↔ km)
+- Subtle opposite-currency amounts using the live FX rate (PHP ↔ USD)
+- Desktop (`app.py`) and Android both have Convert | Travel tabs
 
 #### v1.1.1
 
@@ -41,8 +63,8 @@ Current version file: [`VERSION`](./VERSION) → `1.1.1`
 
 | Artifact | Path |
 |---|---|
-| **Latest release APK** | `dist/php-usd-converter-v1.1.1.apk` |
-| Prior | `dist/php-usd-converter-v1.0.0.apk` |
+| **Latest release APK** | `dist/php-usd-converter-v1.3.2.apk` |
+| Prior | `v1.2.0`, `v1.1.1`, `v1.0.0` |
 | Desktop GUI | `app.py` |
 
 ## Desktop app (CustomTkinter)
