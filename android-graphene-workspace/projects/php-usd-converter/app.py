@@ -33,6 +33,16 @@ WEIGHT_PLACEHOLDER = {
     "kg": "e.g., 70",
     "g": "e.g., 500",
 }
+# Food oven / cooking temperatures
+TEMP_LABELS = {
+    "C": "Temperature (°C):",
+    "F": "Temperature (°F):",
+}
+TEMP_SWITCH_TEXT = {"C": "⇄ °F", "F": "⇄ °C"}
+TEMP_PLACEHOLDER = {
+    "C": "e.g., 180 (oven)",
+    "F": "e.g., 350 (oven)",
+}
 SETTINGS_PATH = Path(__file__).resolve().parent / "user_settings.json"
 
 # Result text sizes (main result, secondary FX line)
@@ -67,7 +77,7 @@ class CurrencyConverterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Toolkit — Convert · Travel · Weight · Translator")
+        self.title("Toolkit — Convert · Travel · Weight · Temp · Translator")
         self.geometry("520x720")
         self.minsize(440, 600)
         self.resizable(True, True)
@@ -85,12 +95,14 @@ class CurrencyConverterApp(ctk.CTk):
         self.travel_php = True  # Travel tab primary currency (independent)
         self.use_km = True
         self.weight_unit = "lb"  # input unit: lb | kg | g
+        self.temp_unit = "C"  # input unit: C | F (food / oven)
 
         self._build_ui()
         self._apply_direction_labels()
         self._apply_distance_unit_labels()
         self._apply_travel_currency_labels()
         self._apply_weight_unit_labels()
+        self._apply_temp_unit_labels()
         self._apply_result_fonts()
 
     # ------------------------------------------------------------------ rate
@@ -129,6 +141,11 @@ class CurrencyConverterApp(ctk.CTk):
                 font=ctk.CTkFont(size=main_sz, weight="bold")
             )
             self.weight_result_secondary.configure(font=ctk.CTkFont(size=fx_sz))
+        if hasattr(self, "temp_result_label"):
+            self.temp_result_label.configure(
+                font=ctk.CTkFont(size=main_sz, weight="bold")
+            )
+            self.temp_result_secondary.configure(font=ctk.CTkFont(size=fx_sz))
         # Keep convert secondary line readable
         if hasattr(self, "rate_info_label"):
             self.rate_info_label.configure(
@@ -455,6 +472,78 @@ class CurrencyConverterApp(ctk.CTk):
                 text="Enter a valid non-negative number.", text_color="#EF4444"
             )
 
+    # --------------------------------------------------------------- temp
+    @staticmethod
+    def _c_to_f(c: float) -> float:
+        return c * 9.0 / 5.0 + 32.0
+
+    @staticmethod
+    def _f_to_c(f: float) -> float:
+        return (f - 32.0) * 5.0 / 9.0
+
+    def swap_temp_unit(self):
+        """Toggle input unit °C ↔ °F; convert entered value when possible."""
+        raw = self.temp_entry.get().strip()
+        old = self.temp_unit
+        new = "F" if old == "C" else "C"
+        if raw:
+            try:
+                val = float(raw)
+                converted = self._c_to_f(val) if old == "C" else self._f_to_c(val)
+                self.temp_entry.delete(0, "end")
+                fmt = f"{converted:.2f}".rstrip("0").rstrip(".")
+                self.temp_entry.insert(0, fmt)
+            except ValueError:
+                pass
+        self.temp_unit = new
+        self._apply_temp_unit_labels()
+        self.calculate_temp()
+
+    def _apply_temp_unit_labels(self):
+        u = self.temp_unit
+        self.temp_unit_label.configure(text=TEMP_LABELS[u])
+        self.temp_unit_button.configure(text=TEMP_SWITCH_TEXT[u])
+        self.temp_entry.configure(placeholder_text=TEMP_PLACEHOLDER[u])
+        other = "°F" if u == "C" else "°C"
+        self.temp_hint.configure(
+            text=f"Food / oven temps · switch to convert to {other}  (input is °{u})"
+        )
+        self.temp_calc_button.configure(
+            text=f"Convert to {other}"
+        )
+
+    def calculate_temp(self, *_args):
+        raw = self.temp_entry.get().strip()
+        if not raw:
+            self.temp_result_label.configure(text="—", text_color="#3B82F6")
+            self.temp_result_secondary.configure(text="")
+            self.temp_status.configure(
+                text="Enter an oven or food temperature.", text_color="#9CA3AF"
+            )
+            return
+        try:
+            value = float(raw)
+            if self.temp_unit == "C":
+                out = self._c_to_f(value)
+                primary = f"{out:.1f} °F"
+                secondary = f"(from {value:g} °C)"
+            else:
+                out = self._f_to_c(value)
+                primary = f"{out:.1f} °C"
+                secondary = f"(from {value:g} °F)"
+            self.temp_result_label.configure(text=primary, text_color="#10B981")
+            self.temp_result_secondary.configure(text=secondary)
+            self.temp_status.configure(
+                text="°C ↔ °F  ·  F = C × 9/5 + 32  ·  C = (F − 32) × 5/9",
+                text_color="#9CA3AF",
+            )
+        except ValueError:
+            self.temp_result_label.configure(text="Invalid input", text_color="#EF4444")
+            self.temp_result_secondary.configure(text="")
+            self.temp_status.configure(
+                text="Enter a valid number (e.g. 180 or 350).", text_color="#EF4444"
+            )
+
     # ------------------------------------------------------------------- UI
     def _build_ui(self):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -480,12 +569,14 @@ class CurrencyConverterApp(ctk.CTk):
         self.tabs.add("Convert")
         self.tabs.add("Travel")
         self.tabs.add("Weight")
+        self.tabs.add("Temp")
         self.tabs.add("Translator")
         self.tabs.add("Settings")
 
         self._build_convert_tab(self.tabs.tab("Convert"))
         self._build_travel_tab(self.tabs.tab("Travel"))
         self._build_weight_tab(self.tabs.tab("Weight"))
+        self._build_temp_tab(self.tabs.tab("Temp"))
         self._build_translator_tab(self.tabs.tab("Translator"))
         self._build_settings_tab(self.tabs.tab("Settings"))
 
@@ -774,6 +865,86 @@ class CurrencyConverterApp(ctk.CTk):
             text_color="#9CA3AF",
         )
         self.weight_status.pack(pady=(4, 12))
+
+    def _build_temp_tab(self, parent):
+        card = ctk.CTkFrame(parent, corner_radius=12)
+        card.pack(pady=8, padx=6, fill="both", expand=True)
+
+        self.temp_hint = ctk.CTkLabel(
+            card,
+            text="Food / oven temps · switch °C ↔ °F  (input is °C)",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+        )
+        self.temp_hint.pack(anchor="w", padx=16, pady=(14, 6))
+
+        t_row = ctk.CTkFrame(card, fg_color="transparent")
+        t_row.pack(fill="x", padx=16, pady=(6, 2))
+        self.temp_unit_label = ctk.CTkLabel(
+            t_row,
+            text="Temperature (°C):",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.temp_unit_label.pack(side="left", anchor="w")
+        self.temp_unit_button = ctk.CTkButton(
+            t_row,
+            text="⇄ °F",
+            width=72,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="transparent",
+            border_width=1,
+            border_color="#3B82F6",
+            text_color="#3B82F6",
+            hover_color="#1E293B",
+            command=self.swap_temp_unit,
+        )
+        self.temp_unit_button.pack(side="right", padx=(8, 0))
+
+        self.temp_entry = ctk.CTkEntry(
+            card,
+            placeholder_text="e.g., 180 (oven)",
+            height=42,
+            font=ctk.CTkFont(size=16),
+        )
+        self.temp_entry.pack(fill="x", padx=16, pady=(0, 4))
+        self.temp_entry.bind("<KeyRelease>", self.calculate_temp)
+        self.temp_entry.bind("<Return>", self.calculate_temp)
+
+        self.temp_calc_button = ctk.CTkButton(
+            card,
+            text="Convert to °F",
+            height=40,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self.calculate_temp,
+        )
+        self.temp_calc_button.pack(fill="x", padx=16, pady=8)
+
+        result_box = ctk.CTkFrame(card, fg_color="#1E293B", corner_radius=8)
+        result_box.pack(fill="x", padx=16, pady=(8, 6))
+        self.temp_result_label = ctk.CTkLabel(
+            result_box,
+            text="—",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color="#3B82F6",
+        )
+        self.temp_result_label.pack(pady=(16, 4), padx=8)
+        self.temp_result_secondary = ctk.CTkLabel(
+            result_box,
+            text="",
+            font=ctk.CTkFont(size=14),
+            text_color="#E5E7EB",
+            justify="center",
+        )
+        self.temp_result_secondary.pack(pady=(0, 16), padx=8)
+
+        self.temp_status = ctk.CTkLabel(
+            card,
+            text="Enter an oven or food temperature.",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+        )
+        self.temp_status.pack(pady=(4, 12))
 
     # ------------------------------------------------------------ translator
     def _build_translator_tab(self, parent):

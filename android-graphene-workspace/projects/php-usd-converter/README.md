@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.5.0** (includes Translator) |
-| Android APK | **v1.4.0** convert/travel/weight (`versionCode` 10400) |
+| Desktop toolkit | **v1.5.1** (Temp + partial Translator) |
+| Android APK | **v1.5.1** convert/travel/weight/temp (`versionCode` 10501) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,9 +18,15 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.5.0`
+Current version file: [`VERSION`](./VERSION) → `1.5.1`
 
 ### Changelog
+
+#### v1.5.1
+
+- **Temp tab:** food / oven **°C ↔ °F** with adjacent ⇄ switch (desktop + Android)
+- Same UI pattern as Weight / currency switches
+- **Translator:** still unfinished / not reliable end-to-end — do not treat as done
 
 #### v1.5.0 (desktop)
 

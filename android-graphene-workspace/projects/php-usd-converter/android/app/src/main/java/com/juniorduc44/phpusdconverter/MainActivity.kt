@@ -31,6 +31,8 @@ class MainActivity : AppCompatActivity() {
     private var useKm: Boolean = true
     /** Weight input unit: lb | kg | g */
     private var weightUnit: String = "lb"
+    /** true = input in Celsius (food / oven); false = Fahrenheit */
+    private var tempCelsius: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,10 +45,12 @@ class MainActivity : AppCompatActivity() {
         applyTravelCurrencyLabels()
         applyDistanceUnitLabels()
         applyWeightUnitLabels()
+        applyTempUnitLabels()
 
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_weight))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_temp))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_settings))
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
@@ -54,6 +58,7 @@ class MainActivity : AppCompatActivity() {
                 when (tab.position) {
                     1 -> calculateTravel()
                     2 -> calculateWeight()
+                    3 -> calculateTemp()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
@@ -86,6 +91,14 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) { calculateWeight() }
+        })
+
+        binding.tempUnitButton.setOnClickListener { swapTempUnit() }
+        binding.tempCalcButton.setOnClickListener { calculateTemp() }
+        binding.tempEntry.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { calculateTemp() }
         })
 
         setupResultSizeSettings()
@@ -158,6 +171,76 @@ class MainActivity : AppCompatActivity() {
         ResultTextPrefs.apply(binding.resultLabel, null, size)
         ResultTextPrefs.apply(binding.travelResultLabel, binding.travelResultFxLabel, size)
         ResultTextPrefs.apply(binding.weightResultLabel, binding.weightResultSecondary, size)
+        ResultTextPrefs.apply(binding.tempResultLabel, binding.tempResultSecondary, size)
+    }
+
+    private fun cToF(c: Double): Double = c * 9.0 / 5.0 + 32.0
+    private fun fToC(f: Double): Double = (f - 32.0) * 5.0 / 9.0
+
+    private fun swapTempUnit() {
+        val raw = binding.tempEntry.text?.toString()?.trim().orEmpty()
+        if (raw.isNotEmpty()) {
+            raw.toDoubleOrNull()?.let { v ->
+                val converted = if (tempCelsius) cToF(v) else fToC(v)
+                val text = String.format(Locale.US, "%.2f", converted)
+                    .trimEnd('0').trimEnd('.')
+                binding.tempEntry.setText(text)
+                binding.tempEntry.setSelection(binding.tempEntry.text?.length ?: 0)
+            }
+        }
+        tempCelsius = !tempCelsius
+        applyTempUnitLabels()
+        calculateTemp()
+    }
+
+    private fun applyTempUnitLabels() {
+        if (tempCelsius) {
+            binding.tempUnitLabel.setText(R.string.temp_label_c)
+            binding.tempUnitButton.setText(R.string.temp_switch_to_f)
+            binding.tempEntry.setHint(R.string.temp_hint_entry_c)
+            binding.tempCalcButton.setText(R.string.temp_convert_to_f)
+            binding.tempHint.setText(R.string.temp_hint_c)
+        } else {
+            binding.tempUnitLabel.setText(R.string.temp_label_f)
+            binding.tempUnitButton.setText(R.string.temp_switch_to_c)
+            binding.tempEntry.setHint(R.string.temp_hint_entry_f)
+            binding.tempCalcButton.setText(R.string.temp_convert_to_c)
+            binding.tempHint.setText(R.string.temp_hint_f)
+        }
+    }
+
+    private fun calculateTemp() {
+        val raw = binding.tempEntry.text?.toString()?.trim().orEmpty()
+        if (raw.isEmpty()) {
+            binding.tempResultLabel.text = "—"
+            binding.tempResultLabel.setTextColor(Color.parseColor("#3B82F6"))
+            binding.tempResultSecondary.text = ""
+            binding.tempStatus.setText(R.string.temp_enter)
+            binding.tempStatus.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+        val value = raw.toDoubleOrNull()
+        if (value == null) {
+            binding.tempResultLabel.text = getString(R.string.invalid_input)
+            binding.tempResultLabel.setTextColor(Color.parseColor("#EF4444"))
+            binding.tempResultSecondary.text = ""
+            binding.tempStatus.setText(R.string.temp_invalid)
+            binding.tempStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val fromLabel = String.format(Locale.US, "%g", value)
+        if (tempCelsius) {
+            val f = cToF(value)
+            binding.tempResultLabel.text = getString(R.string.temp_result_f, f)
+            binding.tempResultSecondary.text = getString(R.string.temp_from_c, fromLabel)
+        } else {
+            val c = fToC(value)
+            binding.tempResultLabel.text = getString(R.string.temp_result_c, c)
+            binding.tempResultSecondary.text = getString(R.string.temp_from_f, fromLabel)
+        }
+        binding.tempResultLabel.setTextColor(Color.parseColor("#10B981"))
+        binding.tempStatus.setText(R.string.temp_note)
+        binding.tempStatus.setTextColor(Color.parseColor("#9CA3AF"))
     }
 
     private fun cycleWeightUnit() {

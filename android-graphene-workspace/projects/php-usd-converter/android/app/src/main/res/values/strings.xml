@@ -5,6 +5,7 @@
     <string name="tab_convert">Convert</string>
     <string name="tab_travel">Travel</string>
     <string name="tab_weight">Weight</string>
+    <string name="tab_temp">Temp</string>
     <string name="subtitle_php_to_usd">Philippine Peso (PHP)  →  US Dollar (USD)</string>
     <string name="subtitle_usd_to_php">US Dollar (USD)  →  Philippine Peso (PHP)</string>
     <string name="amount_label_php">Amount in Pesos (₱):</string>
@@ -74,9 +75,28 @@
     <string name="weight_invalid">Enter a valid non-negative number.</string>
     <string name="weight_note">lb ↔ kg ↔ g (1 lb = 0.45359237 kg exact)</string>
 
+    <!-- Temp (food / oven) -->
+    <string name="temp_hint_c">Food / oven temps · switch to convert to °F  (input is °C)</string>
+    <string name="temp_hint_f">Food / oven temps · switch to convert to °C  (input is °F)</string>
+    <string name="temp_label_c">Temperature (°C):</string>
+    <string name="temp_label_f">Temperature (°F):</string>
+    <string name="temp_switch_to_f">⇄ °F</string>
+    <string name="temp_switch_to_c">⇄ °C</string>
+    <string name="temp_hint_entry_c">e.g., 180 (oven)</string>
+    <string name="temp_hint_entry_f">e.g., 350 (oven)</string>
+    <string name="temp_convert_to_f">Convert to °F</string>
+    <string name="temp_convert_to_c">Convert to °C</string>
+    <string name="temp_enter">Enter an oven or food temperature.</string>
+    <string name="temp_invalid">Enter a valid number (e.g. 180 or 350).</string>
+    <string name="temp_note">°C ↔ °F  ·  F = C × 9/5 + 32  ·  C = (F − 32) × 5/9</string>
+    <string name="temp_result_f">%1$.1f °F</string>
+    <string name="temp_result_c">%1$.1f °C</string>
+    <string name="temp_from_c">(from %1$s °C)</string>
+    <string name="temp_from_f">(from %1$s °F)</string>
+
     <string name="tab_settings">Settings</string>
     <string name="settings_display">Display</string>
-    <string name="settings_result_size_help">Result text size for Convert and Travel (cost per km / mile). Use Large or Extra large if results are hard to read.</string>
+    <string name="settings_result_size_help">Result text size for Convert, Travel, Weight, and Temp. Use Large or Extra large if results are hard to read.</string>
     <string name="size_small">Small</string>
     <string name="size_medium">Medium</string>
     <string name="size_large">Large (default)</string>
