@@ -41,3 +41,25 @@ gh release create "php-usd-converter-v1.0.0" \
 ```
 
 (Run from this project directory, or pass the full path to the APK.)
+
+## Signing (sideload)
+
+Release APKs **must** be signed or Android will refuse install (`App not installed` / parse error).
+
+Use env vars when building:
+
+```bash
+export PHP_USD_KEYSTORE="$PWD/android/app/release.keystore"
+export PHP_USD_STORE_PASSWORD='…'   # local only — never commit
+export PHP_USD_KEY_ALIAS='php-usd-converter'
+export PHP_USD_KEY_PASSWORD='…'
+./scripts/build_signed_release_apk.sh
+```
+
+`assembleRelease` without those vars produces `app-release-unsigned.apk` — **do not publish that**.
+Verify before upload:
+
+```bash
+$ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs dist/php-usd-converter-vX.Y.Z.apk
+```
+
