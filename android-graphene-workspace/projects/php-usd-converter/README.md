@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.6.1** (Blockchain / Robinhood Chain tracker) |
-| Android APK | **v1.6.1** + **Chain tab** on Android (`versionCode` 10601) |
+| Desktop toolkit | **v1.6.2** (modern Chain market board) |
+| Android APK | **v1.6.2** Chain tab + category views (`versionCode` 10602) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,9 +18,16 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.6.1`
+Current version file: [`VERSION`](./VERSION) → `1.6.2`
 
 ### Changelog
+
+#### v1.6.2
+
+- **Modern Chain UI** (desktop + Android): coin cards, LIVE pill, cleaner hierarchy
+- **Market view dropdown**: Top 10 volume · Trending boosts · Trending momentum · Memecoins · RWA · My contracts
+- **Set as default** view (persisted on desktop `user_settings.json` / Android SharedPreferences)
+- DexScreener boosts + momentum fetchers
 
 #### v1.6.1
 

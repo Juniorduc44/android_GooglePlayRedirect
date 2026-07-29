@@ -185,6 +185,27 @@ def best_pair_per_token(pairs: list[PairQuote]) -> dict[str, PairQuote]:
     return best
 
 
+def token_boosts(
+    *,
+    which: str = "top",
+    chain: str | None = "robinhood",
+    timeout: float = 25.0,
+) -> list[dict[str, Any]]:
+    """DexScreener spotlight boosts. which: 'top' | 'latest'."""
+    path = "token-boosts/top/v1" if which != "latest" else "token-boosts/latest/v1"
+    data = _http_get_json(f"{BASE}/{path}", timeout=timeout)
+    if not isinstance(data, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        if chain and str(item.get("chainId") or "").lower() != chain.lower():
+            continue
+        out.append(item)
+    return out
+
+
 def sleep_politely(seconds: float = 0.15) -> None:
     try:
         time.sleep(max(0.0, seconds))

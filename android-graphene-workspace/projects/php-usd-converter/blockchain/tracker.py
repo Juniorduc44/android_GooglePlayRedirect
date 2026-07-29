@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .categories import DEFAULT_CATEGORY
 from .defaults import DEFAULT_RWA, MEME_EXCLUDE_SYMBOLS, MEME_SEED_QUERIES
 from .dexscreener import (
     DexScreenerError,
@@ -13,9 +14,18 @@ from .dexscreener import (
     is_valid_evm_address,
     search_pairs,
     sleep_politely,
+    token_boosts,
     tokens_by_address,
 )
 from .networks import DEFAULT_NETWORK_ID, Network, get_network
+
+# Broader seed set for volume / momentum discovery
+_VOLUME_SEED_QUERIES = tuple(
+    dict.fromkeys(
+        list(MEME_SEED_QUERIES)
+        + ["NVDA", "TSLA", "AAPL", "USDG", "WETH", "stock", "token", "ETH"]
+    )
+)
 
 
 @dataclass
@@ -284,6 +294,199 @@ class PriceTracker:
             else:
                 out.append(_from_pair(pq, "custom"))
         return out
+
+    def _discover_pairs(self) -> list[PairQuote]:
+        """Union of search results for volume/momentum rankings."""
+        net = self.network
+        all_pairs: list[PairQuote] = []
+        for q in _VOLUME_SEED_QUERIES:
+            try:
+                all_pairs.extend(search_pairs(q, chain=net.dexscreener_slug))
+                sleep_politely(0.08)
+            except Exception:
+                continue
+        return list(best_pair_per_token(all_pairs).values())
+
+    def fetch_top_volume(self, limit: int = 10) -> list[TrackedAsset]:
+        """Top tokens by 24h volume (all categories)."""
+        try:
+            pairs = self._discover_pairs()
+            pairs.sort(key=lambda p: p.volume_h24, reverse=True)
+            out: list[TrackedAsset] = []
+            seen: set[str] = set()
+            for pq in pairs:
+                key = (pq.base_address or "").lower()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                out.append(_from_pair(pq, "top_volume"))
+                if len(out) >= limit:
+                    break
+            if not out:
+                return [
+                    TrackedAsset(
+                        symbol="—",
+                        name="No volume data",
+                        address="",
+                        category="top_volume",
+                        error="DexScreener returned no robinhood pairs",
+                    )
+                ]
+            return out
+        except Exception as e:
+            return [
+                TrackedAsset(
+                    symbol="ERR",
+                    name="Top volume failed",
+                    address="",
+                    category="top_volume",
+                    error=f"{type(e).__name__}: {e}",
+                )
+            ]
+
+    def fetch_trending_boosts(self, limit: int = 10) -> list[TrackedAsset]:
+        """DexScreener token-boosts (spotlight) on this chain, with prices."""
+        net = self.network
+        try:
+            boosts = token_boosts(which="top", chain=net.dexscreener_slug)
+            # fill from latest if top is thin
+            if len(boosts) < limit:
+                seen = {str(b.get("tokenAddress") or "").lower() for b in boosts}
+                for b in token_boosts(which="latest", chain=net.dexscreener_slug):
+                    addr = str(b.get("tokenAddress") or "").lower()
+                    if addr and addr not in seen:
+                        boosts.append(b)
+                        seen.add(addr)
+                    if len(boosts) >= limit:
+                        break
+            addrs = [
+                str(b.get("tokenAddress") or "")
+                for b in boosts
+                if is_valid_evm_address(str(b.get("tokenAddress") or ""))
+            ][: max(limit, 15)]
+            quotes = best_pair_per_token(
+                tokens_by_address(addrs, chain=net.dexscreener_slug) if addrs else []
+            )
+            out: list[TrackedAsset] = []
+            for b in boosts:
+                if len(out) >= limit:
+                    break
+                addr = str(b.get("tokenAddress") or "")
+                note = str(b.get("description") or "DexScreener boost")[:120]
+                pq = quotes.get(addr.lower()) if addr else None
+                if pq:
+                    t = _from_pair(pq, "trending_boosts", note=note)
+                    out.append(t)
+                else:
+                    out.append(
+                        TrackedAsset(
+                            symbol="?",
+                            name="Boosted token",
+                            address=addr,
+                            category="trending_boosts",
+                            note=note,
+                            error="No liquid pair quote yet" if addr else "Missing address",
+                        )
+                    )
+            if not out:
+                out.append(
+                    TrackedAsset(
+                        symbol="—",
+                        name="No boosts",
+                        address="",
+                        category="trending_boosts",
+                        error="No Robinhood boosts on DexScreener right now",
+                    )
+                )
+            return out
+        except Exception as e:
+            return [
+                TrackedAsset(
+                    symbol="ERR",
+                    name="Boosts failed",
+                    address="",
+                    category="trending_boosts",
+                    error=f"{type(e).__name__}: {e}",
+                )
+            ]
+
+    def fetch_trending_momentum(
+        self,
+        limit: int = 10,
+        *,
+        min_vol: float = 5_000.0,
+        min_liq: float = 2_000.0,
+    ) -> list[TrackedAsset]:
+        """Biggest |24h %| movers with volume/liquidity filters."""
+        try:
+            pairs = self._discover_pairs()
+            active = [
+                p
+                for p in pairs
+                if p.volume_h24 >= min_vol
+                and p.liquidity_usd >= min_liq
+                and p.price_change_h24 is not None
+            ]
+            active.sort(key=lambda p: abs(p.price_change_h24 or 0.0), reverse=True)
+            out: list[TrackedAsset] = []
+            seen: set[str] = set()
+            for pq in active:
+                key = (pq.base_address or "").lower()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                out.append(_from_pair(pq, "trending_momentum"))
+                if len(out) >= limit:
+                    break
+            if not out:
+                return [
+                    TrackedAsset(
+                        symbol="—",
+                        name="No momentum movers",
+                        address="",
+                        category="trending_momentum",
+                        error="No pairs met vol/liq filters",
+                    )
+                ]
+            return out
+        except Exception as e:
+            return [
+                TrackedAsset(
+                    symbol="ERR",
+                    name="Momentum failed",
+                    address="",
+                    category="trending_momentum",
+                    error=f"{type(e).__name__}: {e}",
+                )
+            ]
+
+    def fetch_category(self, category_id: str, limit: int = 10) -> list[TrackedAsset]:
+        """Dispatch by category id (dropdown). Never raises."""
+        cat = (category_id or DEFAULT_CATEGORY).lower().strip()
+        try:
+            if cat == "top_volume":
+                return self.fetch_top_volume(limit=limit)
+            if cat == "trending_boosts":
+                return self.fetch_trending_boosts(limit=limit)
+            if cat == "trending_momentum":
+                return self.fetch_trending_momentum(limit=limit)
+            if cat == "memecoins":
+                return self.fetch_top_memecoins(limit=limit)
+            if cat == "rwa":
+                return self.fetch_rwa()
+            if cat == "custom":
+                return self.fetch_custom()
+            return self.fetch_top_volume(limit=limit)
+        except Exception as e:
+            return [
+                TrackedAsset(
+                    symbol="ERR",
+                    name=cat,
+                    address="",
+                    category=cat,
+                    error=f"{type(e).__name__}: {e}",
+                )
+            ]
 
     def fetch_all(self, meme_limit: int = 10) -> dict[str, list[TrackedAsset]]:
         """Fetch all sections; isolates failures."""

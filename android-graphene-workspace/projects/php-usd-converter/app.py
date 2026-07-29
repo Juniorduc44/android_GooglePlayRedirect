@@ -10,6 +10,13 @@ from pathlib import Path
 import customtkinter as ctk
 import requests
 
+from blockchain.categories import (
+    DEFAULT_CATEGORY,
+    category_labels,
+    id_to_description,
+    id_to_label,
+    label_to_id,
+)
 from blockchain.networks import list_network_labels
 from blockchain.selftest import run_selftests, summarize as summarize_selftests
 from blockchain.tracker import PriceTracker, TrackedAsset
@@ -94,6 +101,9 @@ class CurrencyConverterApp(ctk.CTk):
         self._translator_busy = False
         self._blockchain_busy = False
         self.price_tracker = PriceTracker("robinhood")
+        cat = self._settings.get("chain_default_category", DEFAULT_CATEGORY)
+        self.chain_category_id = cat if isinstance(cat, str) else DEFAULT_CATEGORY
+        self._coin_cards: list = []
 
         self.exchange_rate = self.get_live_rate()
         self.php_to_usd = True  # Convert tab primary currency
@@ -955,145 +965,311 @@ class CurrencyConverterApp(ctk.CTk):
 
     # ---------------------------------------------------------- blockchain
     def _build_blockchain_tab(self, parent):
-        """Robinhood Chain price tracker (DexScreener). Default network = RH."""
-        scroll = ctk.CTkScrollableFrame(parent, corner_radius=12)
-        scroll.pack(pady=6, padx=4, fill="both", expand=True)
-        card = scroll
+        """Modern Robinhood Chain market board (cards + category dropdown)."""
+        outer = ctk.CTkFrame(parent, fg_color="transparent")
+        outer.pack(fill="both", expand=True, padx=4, pady=4)
 
+        # Header card
+        header = ctk.CTkFrame(outer, corner_radius=16, fg_color=("#1E293B", "#0F172A"))
+        header.pack(fill="x", padx=4, pady=(4, 8))
+
+        top = ctk.CTkFrame(header, fg_color="transparent")
+        top.pack(fill="x", padx=14, pady=(14, 4))
         ctk.CTkLabel(
-            card,
-            text="Blockchain price tracker",
-            font=ctk.CTkFont(size=15, weight="bold"),
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-        ctk.CTkLabel(
-            card,
-            text="Default: Robinhood Chain (4663) · prices via DexScreener · "
-            "passkey wallet planned (see docs/ROBINHOOD_CHAIN_PLAN.md)",
+            top,
+            text="⛓  Robinhood Chain",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(side="left")
+        self.chain_live_pill = ctk.CTkLabel(
+            top,
+            text="  LIVE  ",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="#065F46",
+            text_color="#6EE7B7",
+            corner_radius=8,
+        )
+        self.chain_live_pill.pack(side="right")
+
+        self.chain_meta_label = ctk.CTkLabel(
+            header,
+            text="",
             font=ctk.CTkFont(size=11),
-            text_color="#9CA3AF",
-            wraplength=480,
+            text_color="#94A3B8",
+            wraplength=500,
             justify="left",
-        ).pack(anchor="w", padx=12, pady=(0, 8))
+        )
+        self.chain_meta_label.pack(anchor="w", padx=14, pady=(0, 10))
+        self._refresh_chain_meta()
 
-        net_row = ctk.CTkFrame(card, fg_color="transparent")
-        net_row.pack(fill="x", padx=12, pady=4)
+        # Controls card
+        controls = ctk.CTkFrame(outer, corner_radius=14, fg_color=("#1E293B", "#111827"))
+        controls.pack(fill="x", padx=4, pady=(0, 8))
+
+        net_row = ctk.CTkFrame(controls, fg_color="transparent")
+        net_row.pack(fill="x", padx=12, pady=(12, 4))
         ctk.CTkLabel(
-            net_row, text="Network:", font=ctk.CTkFont(size=12, weight="bold")
+            net_row, text="Network", font=ctk.CTkFont(size=11, weight="bold"), text_color="#94A3B8"
         ).pack(side="left")
         labels = [lab for _, lab in list_network_labels()]
         self._chain_id_by_label = {lab: nid for nid, lab in list_network_labels()}
-        default_lab = labels[0]  # Robinhood first
         self.chain_network_menu = ctk.CTkOptionMenu(
             net_row,
             values=labels,
-            width=220,
+            width=200,
+            height=32,
+            corner_radius=10,
             command=self._on_chain_network_change,
         )
-        self.chain_network_menu.set(default_lab)
-        self.chain_network_menu.pack(side="left", padx=8)
+        self.chain_network_menu.set(labels[0])
+        self.chain_network_menu.pack(side="right")
 
-        self.chain_meta_label = ctk.CTkLabel(
-            card,
-            text="",
+        cat_row = ctk.CTkFrame(controls, fg_color="transparent")
+        cat_row.pack(fill="x", padx=12, pady=4)
+        ctk.CTkLabel(
+            cat_row, text="View", font=ctk.CTkFont(size=11, weight="bold"), text_color="#94A3B8"
+        ).pack(side="left")
+        cats = category_labels()
+        self.chain_category_menu = ctk.CTkOptionMenu(
+            cat_row,
+            values=cats,
+            width=200,
+            height=32,
+            corner_radius=10,
+            fg_color="#1D4ED8",
+            button_color="#1E40AF",
+            button_hover_color="#2563EB",
+            command=self._on_chain_category_change,
+        )
+        self.chain_category_menu.set(id_to_label(self.chain_category_id))
+        self.chain_category_menu.pack(side="right")
+
+        self.chain_cat_desc = ctk.CTkLabel(
+            controls,
+            text=id_to_description(self.chain_category_id),
             font=ctk.CTkFont(size=11),
-            text_color="#6B7280",
+            text_color="#64748B",
             wraplength=480,
             justify="left",
         )
-        self.chain_meta_label.pack(anchor="w", padx=12, pady=(0, 6))
-        self._refresh_chain_meta()
+        self.chain_cat_desc.pack(anchor="w", padx=14, pady=(0, 6))
 
-        btn_row = ctk.CTkFrame(card, fg_color="transparent")
-        btn_row.pack(fill="x", padx=12, pady=6)
+        btn_row = ctk.CTkFrame(controls, fg_color="transparent")
+        btn_row.pack(fill="x", padx=12, pady=(4, 12))
         self.chain_refresh_btn = ctk.CTkButton(
             btn_row,
-            text="Refresh prices",
-            width=130,
-            height=34,
+            text="↻  Refresh",
+            width=110,
+            height=36,
+            corner_radius=10,
             font=ctk.CTkFont(size=13, weight="bold"),
             command=self._blockchain_refresh,
         )
         self.chain_refresh_btn.pack(side="left")
+        self.chain_default_btn = ctk.CTkButton(
+            btn_row,
+            text="★ Set default",
+            width=120,
+            height=36,
+            corner_radius=10,
+            fg_color="#334155",
+            hover_color="#475569",
+            command=self._blockchain_set_default_category,
+        )
+        self.chain_default_btn.pack(side="left", padx=8)
         self.chain_test_btn = ctk.CTkButton(
             btn_row,
-            text="Run self-test",
-            width=120,
-            height=34,
+            text="Self-test",
+            width=100,
+            height=36,
+            corner_radius=10,
             fg_color="transparent",
             border_width=1,
             border_color="#3B82F6",
-            text_color="#3B82F6",
+            text_color="#60A5FA",
             command=self._blockchain_selftest,
         )
-        self.chain_test_btn.pack(side="left", padx=8)
+        self.chain_test_btn.pack(side="right")
 
         self.chain_status = ctk.CTkLabel(
-            card,
-            text="Press Refresh to load RWA + top memecoins.",
+            outer,
+            text="Pick a view and tap Refresh · default loads on open",
             font=ctk.CTkFont(size=11),
-            text_color="#9CA3AF",
-            wraplength=480,
-            justify="left",
+            text_color="#94A3B8",
         )
-        self.chain_status.pack(anchor="w", padx=12, pady=(2, 6))
+        self.chain_status.pack(anchor="w", padx=10, pady=(0, 4))
 
+        # Coin list (modern cards)
+        self.chain_coins_scroll = ctk.CTkScrollableFrame(
+            outer,
+            corner_radius=14,
+            fg_color=("#0B1220", "#020617"),
+            height=320,
+        )
+        self.chain_coins_scroll.pack(fill="both", expand=True, padx=4, pady=4)
+        self._show_chain_placeholder("Tap Refresh to load markets…")
+
+        # Custom contract strip
+        custom = ctk.CTkFrame(outer, corner_radius=12, fg_color=("#1E293B", "#0F172A"))
+        custom.pack(fill="x", padx=4, pady=(6, 4))
         ctk.CTkLabel(
-            card,
-            text="RWA / stock tokens (defaults)",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            custom,
+            text="Track contract",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#94A3B8",
         ).pack(anchor="w", padx=12, pady=(8, 2))
-        self.chain_rwa_box = ctk.CTkTextbox(card, height=130, wrap="none")
-        self.chain_rwa_box.pack(fill="x", padx=12, pady=2)
-        self.chain_rwa_box.insert("0.0", "— not loaded —")
-
-        ctk.CTkLabel(
-            card,
-            text="Top 10 memecoins (DexScreener 24h vol)",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-        self.chain_meme_box = ctk.CTkTextbox(card, height=160, wrap="none")
-        self.chain_meme_box.pack(fill="x", padx=12, pady=2)
-        self.chain_meme_box.insert("0.0", "— not loaded —")
-
-        ctk.CTkLabel(
-            card,
-            text="Track custom contract",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-        add_row = ctk.CTkFrame(card, fg_color="transparent")
-        add_row.pack(fill="x", padx=12, pady=2)
+        add_row = ctk.CTkFrame(custom, fg_color="transparent")
+        add_row.pack(fill="x", padx=12, pady=(0, 10))
         self.chain_contract_entry = ctk.CTkEntry(
             add_row,
-            placeholder_text="0x… ERC-20 on selected chain",
-            height=34,
+            placeholder_text="0x… ERC-20 on Robinhood Chain",
+            height=36,
+            corner_radius=10,
         )
         self.chain_contract_entry.pack(side="left", fill="x", expand=True)
         ctk.CTkButton(
-            add_row, text="Add", width=64, height=34, command=self._blockchain_add_contract
+            add_row,
+            text="Add",
+            width=72,
+            height=36,
+            corner_radius=10,
+            command=self._blockchain_add_contract,
         ).pack(side="left", padx=(8, 0))
-        self.chain_custom_box = ctk.CTkTextbox(card, height=70, wrap="none")
-        self.chain_custom_box.pack(fill="x", padx=12, pady=2)
-        self.chain_custom_box.insert("0.0", "No custom contracts yet.")
+
+        self.chain_test_log = ctk.CTkTextbox(
+            outer, height=72, corner_radius=10, fg_color=("#111827", "#020617")
+        )
+        self.chain_test_log.pack(fill="x", padx=4, pady=(4, 8))
+        self.chain_test_log.insert("0.0", "Self-test log appears here.\n")
+
+    def _show_chain_placeholder(self, msg: str):
+        self._clear_coin_cards()
+        ph = ctk.CTkFrame(self.chain_coins_scroll, corner_radius=12, fg_color="#1E293B")
+        ph.pack(fill="x", padx=6, pady=12)
+        ctk.CTkLabel(
+            ph, text=msg, font=ctk.CTkFont(size=13), text_color="#64748B"
+        ).pack(pady=28)
+        self._coin_cards.append(ph)
+
+    def _clear_coin_cards(self):
+        for w in getattr(self, "_coin_cards", []):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+        self._coin_cards = []
+
+    def _render_coin_cards(self, rows: list[TrackedAsset]):
+        self._clear_coin_cards()
+        if not rows:
+            self._show_chain_placeholder("No tokens in this view.")
+            return
+        for rank, a in enumerate(rows, 1):
+            card = self._make_coin_card(rank, a)
+            card.pack(fill="x", padx=6, pady=5)
+            self._coin_cards.append(card)
+
+    def _make_coin_card(self, rank: int, a: TrackedAsset) -> ctk.CTkFrame:
+        card = ctk.CTkFrame(
+            self.chain_coins_scroll,
+            corner_radius=14,
+            fg_color=("#1E293B", "#0F172A"),
+            border_width=1,
+            border_color="#1E3A5F",
+        )
+        row1 = ctk.CTkFrame(card, fg_color="transparent")
+        row1.pack(fill="x", padx=12, pady=(10, 2))
+
+        badge = ctk.CTkLabel(
+            row1,
+            text=f" #{rank} ",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color="#1E3A8A",
+            text_color="#93C5FD",
+            corner_radius=8,
+        )
+        badge.pack(side="left", padx=(0, 8))
+
+        title = ctk.CTkLabel(
+            row1,
+            text=a.symbol or "?",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        title.pack(side="left")
+
+        name = (a.name or "")[:28]
+        if name:
+            ctk.CTkLabel(
+                row1, text=f"  {name}", font=ctk.CTkFont(size=11), text_color="#64748B"
+            ).pack(side="left")
+
+        # price + change
+        ch = a.change_h24
+        if a.error:
+            ch_color = "#F87171"
+            ch_txt = "ERR"
+        elif ch is None:
+            ch_color = "#94A3B8"
+            ch_txt = "—"
+        elif ch >= 0:
+            ch_color = "#34D399"
+            ch_txt = a.format_change()
+        else:
+            ch_color = "#F87171"
+            ch_txt = a.format_change()
 
         ctk.CTkLabel(
-            card,
-            text="Self-test log",
+            row1,
+            text=ch_txt,
             font=ctk.CTkFont(size=12, weight="bold"),
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-        self.chain_test_log = ctk.CTkTextbox(card, height=100, wrap="word")
-        self.chain_test_log.pack(fill="x", padx=12, pady=(2, 14))
-        self.chain_test_log.insert(
-            "0.0",
-            "CLI: ./venv/bin/python scripts/probe_blockchain.py --show-tables\n",
-        )
+            text_color=ch_color,
+        ).pack(side="right")
+        ctk.CTkLabel(
+            row1,
+            text=a.format_price() if not a.error else "—",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color="#F8FAFC",
+        ).pack(side="right", padx=(0, 10))
+
+        row2 = ctk.CTkFrame(card, fg_color="transparent")
+        row2.pack(fill="x", padx=12, pady=(2, 4))
+        vol = f"Vol 24h  ${a.volume_h24:,.0f}" if not a.error else (a.error or "")[:70]
+        ctk.CTkLabel(
+            row2, text=vol, font=ctk.CTkFont(size=11), text_color="#64748B"
+        ).pack(side="left")
+        if a.liquidity_usd and not a.error:
+            ctk.CTkLabel(
+                row2,
+                text=f"  ·  Liq ${a.liquidity_usd:,.0f}",
+                font=ctk.CTkFont(size=11),
+                text_color="#475569",
+            ).pack(side="left")
+
+        row3 = ctk.CTkFrame(card, fg_color="transparent")
+        row3.pack(fill="x", padx=12, pady=(0, 10))
+        contract = a.address or "—"
+        ctk.CTkLabel(
+            row3,
+            text=contract,
+            font=ctk.CTkFont(size=10, family="monospace"),
+            text_color="#60A5FA",
+        ).pack(side="left")
+        if a.note and not a.error:
+            ctk.CTkLabel(
+                row3,
+                text=f"  ·  {(a.note or '')[:40]}",
+                font=ctk.CTkFont(size=10),
+                text_color="#475569",
+            ).pack(side="left")
+        return card
 
     def _refresh_chain_meta(self):
         try:
             n = self.price_tracker.network
             self.chain_meta_label.configure(
                 text=(
-                    f"Chain ID {n.chain_id} · gas {n.native_symbol} · "
-                    f"RPC {n.rpc_public}\nExplorer {n.explorer}\n{n.notes}"
+                    f"Chain ID {n.chain_id}  ·  gas {n.native_symbol}  ·  "
+                    f"DexScreener `{n.dexscreener_slug}`\n"
+                    f"RPC {n.rpc_public}\nExplorer {n.explorer}"
                 )
             )
         except Exception as e:
@@ -1105,11 +1281,35 @@ class CurrencyConverterApp(ctk.CTk):
             self.price_tracker.set_network(nid)
             self._refresh_chain_meta()
             self.chain_status.configure(
-                text=f"Network set to {label}. Press Refresh.",
-                text_color="#9CA3AF",
+                text=f"Network → {label}. Refreshing…",
+                text_color="#94A3B8",
             )
+            self._blockchain_refresh()
         except Exception as e:
             self.chain_status.configure(text=f"Network change failed: {e}", text_color="#EF4444")
+
+    def _on_chain_category_change(self, label: str):
+        try:
+            self.chain_category_id = label_to_id(label)
+            self.chain_cat_desc.configure(text=id_to_description(self.chain_category_id))
+            self.chain_status.configure(
+                text=f"View → {label}. Refreshing…", text_color="#94A3B8"
+            )
+            self._blockchain_refresh()
+        except Exception as e:
+            self.chain_status.configure(text=f"Category change failed: {e}", text_color="#EF4444")
+
+    def _blockchain_set_default_category(self):
+        try:
+            self._settings["chain_default_category"] = self.chain_category_id
+            save_settings(self._settings)
+            lab = id_to_label(self.chain_category_id)
+            self.chain_status.configure(
+                text=f"Default view saved: {lab}",
+                text_color="#34D399",
+            )
+        except Exception as e:
+            self.chain_status.configure(text=f"Could not save default: {e}", text_color="#EF4444")
 
     def _blockchain_set_busy(self, busy: bool):
         self._blockchain_busy = busy
@@ -1118,74 +1318,41 @@ class CurrencyConverterApp(ctk.CTk):
             getattr(self, "chain_refresh_btn", None),
             getattr(self, "chain_test_btn", None),
             getattr(self, "chain_network_menu", None),
+            getattr(self, "chain_category_menu", None),
+            getattr(self, "chain_default_btn", None),
         ):
             if w is not None:
                 try:
                     w.configure(state=state)
                 except Exception:
                     pass
-
-    @staticmethod
-    def _format_asset_table(rows: list[TrackedAsset], header: str) -> str:
-        lines = [header]
-        if not rows:
-            lines.append("(empty)")
-            return "\n".join(lines)
-        for a in rows:
-            if a.error:
-                lines.append(f"{a.symbol:10}  ERROR  {a.error[:60]}")
-                if a.address:
-                    lines.append(f"{'':10}  contract {a.address}")
-                continue
-            lines.append(
-                f"{a.symbol:10} {a.format_price():>12}  {a.format_change():>8}  "
-                f"vol24={a.volume_h24:,.0f}"
+        try:
+            self.chain_live_pill.configure(
+                text="  …  " if busy else "  LIVE  ",
+                fg_color="#78350F" if busy else "#065F46",
+                text_color="#FCD34D" if busy else "#6EE7B7",
             )
-            lines.append(
-                f"{'':10}  {a.short_contract()}  {a.dex_id}  {a.address}"
-            )
-        return "\n".join(lines)
+        except Exception:
+            pass
 
     def _blockchain_refresh(self):
         if self._blockchain_busy:
             return
+        cat = getattr(self, "chain_category_id", DEFAULT_CATEGORY)
 
         def work():
             try:
-                data = self.price_tracker.fetch_all(meme_limit=10)
-                rwa_txt = self._format_asset_table(
-                    data.get("rwa") or [],
-                    "SYM             PRICE     24h%   (contract on next line)",
-                )
-                meme_txt = self._format_asset_table(
-                    data.get("meme") or [],
-                    "SYM             PRICE     24h%   (contract on next line)",
-                )
-                custom_txt = self._format_asset_table(
-                    data.get("custom") or [],
-                    "Custom tracked contracts:",
-                )
-                rwa_ok = sum(1 for a in (data.get("rwa") or []) if not a.error and a.price_usd)
-                meme_ok = sum(1 for a in (data.get("meme") or []) if not a.error and a.address)
+                rows = self.price_tracker.fetch_category(cat, limit=10)
+                ok = sum(1 for a in rows if not a.error and (a.price_usd or a.address))
                 msg = (
-                    f"Loaded {rwa_ok} RWA priced · {meme_ok} memecoins · "
-                    f"network {self.price_tracker.network.name}"
+                    f"{id_to_label(cat)} · {ok}/{len(rows)} ok · "
+                    f"{self.price_tracker.network.name}"
                 )
-                color = "#10B981" if rwa_ok >= 3 else "#F59E0B"
+                color = "#34D399" if ok >= 1 else "#F59E0B"
 
                 def apply():
                     try:
-                        self.chain_rwa_box.delete("0.0", "end")
-                        self.chain_rwa_box.insert("0.0", rwa_txt)
-                        self.chain_meme_box.delete("0.0", "end")
-                        self.chain_meme_box.insert("0.0", meme_txt)
-                        self.chain_custom_box.delete("0.0", "end")
-                        self.chain_custom_box.insert(
-                            "0.0",
-                            custom_txt
-                            if (data.get("custom") or [])
-                            else "No custom contracts yet.",
-                        )
+                        self._render_coin_cards(rows)
                         self.chain_status.configure(text=msg, text_color=color)
                     except Exception as e:
                         self.chain_status.configure(
@@ -1200,12 +1367,13 @@ class CurrencyConverterApp(ctk.CTk):
 
                 def fail():
                     self.chain_status.configure(text=err, text_color="#EF4444")
+                    self._show_chain_placeholder(err)
                     self._blockchain_set_busy(False)
 
                 self.after(0, fail)
 
         self._blockchain_set_busy(True)
-        self.chain_status.configure(text="Fetching DexScreener…", text_color="#9CA3AF")
+        self.chain_status.configure(text="Fetching DexScreener…", text_color="#94A3B8")
         threading.Thread(target=work, daemon=True).start()
 
     def _blockchain_add_contract(self):
@@ -1213,8 +1381,12 @@ class CurrencyConverterApp(ctk.CTk):
         try:
             addr = self.price_tracker.add_custom_contract(raw)
             self.chain_contract_entry.delete(0, "end")
+            # switch to custom view
+            self.chain_category_id = "custom"
+            self.chain_category_menu.set(id_to_label("custom"))
+            self.chain_cat_desc.configure(text=id_to_description("custom"))
             self.chain_status.configure(
-                text=f"Added {addr}. Press Refresh.", text_color="#10B981"
+                text=f"Added {addr}", text_color="#34D399"
             )
             self._blockchain_refresh()
         except Exception as e:
@@ -1228,7 +1400,7 @@ class CurrencyConverterApp(ctk.CTk):
             try:
                 results = run_selftests(live_network=True)
                 _, failed, text = summarize_selftests(results)
-                color = "#10B981" if failed == 0 else "#EF4444"
+                color = "#34D399" if failed == 0 else "#EF4444"
 
                 def apply():
                     try:
@@ -1238,7 +1410,7 @@ class CurrencyConverterApp(ctk.CTk):
                             text=(
                                 "Self-test passed."
                                 if failed == 0
-                                else f"Self-test: {failed} failure(s) — see log."
+                                else f"Self-test: {failed} failure(s)."
                             ),
                             text_color=color,
                         )
@@ -1258,7 +1430,7 @@ class CurrencyConverterApp(ctk.CTk):
                 self.after(0, fail)
 
         self._blockchain_set_busy(True)
-        self.chain_status.configure(text="Running self-tests…", text_color="#9CA3AF")
+        self.chain_status.configure(text="Running self-tests…", text_color="#94A3B8")
         threading.Thread(target=work, daemon=True).start()
 
     # ------------------------------------------------------------ translator

@@ -4,9 +4,16 @@ import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.tabs.TabLayout
 import com.juniorduc44.phpusdconverter.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +40,9 @@ class MainActivity : AppCompatActivity() {
     private var weightUnit: String = "lb"
     /** true = input in Celsius (food / oven); false = Fahrenheit */
     private var tempCelsius: Boolean = true
+    private var chainCategoryId: String = RobinhoodChainTracker.DEFAULT_CATEGORY
+    private var chainSpinnerReady: Boolean = false
+    private var chainLoadedOnce: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         applyDistanceUnitLabels()
         applyWeightUnitLabels()
         applyTempUnitLabels()
-        binding.chainMetaLabel.text = RobinhoodChainTracker.networkMetaLine()
+        setupChainTab()
 
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
@@ -62,10 +72,7 @@ class MainActivity : AppCompatActivity() {
                     2 -> calculateWeight()
                     3 -> calculateTemp()
                     4 -> {
-                        // Auto-refresh Chain tab when first opened if still idle
-                        if (binding.chainRwaText.text.toString().contains("not loaded")) {
-                            refreshBlockchain()
-                        }
+                        if (!chainLoadedOnce) refreshBlockchain()
                     }
                 }
             }
@@ -112,6 +119,7 @@ class MainActivity : AppCompatActivity() {
         binding.chainRefreshButton.setOnClickListener { refreshBlockchain() }
         binding.chainSelfTestButton.setOnClickListener { runBlockchainSelfTest() }
         binding.chainAddContractButton.setOnClickListener { addChainContract() }
+        binding.chainDefaultButton.setOnClickListener { saveChainDefaultCategory() }
 
         setupResultSizeSettings()
         applyResultTextSize()
@@ -126,41 +134,95 @@ class MainActivity : AppCompatActivity() {
 
     // --- Blockchain (Robinhood Chain) ---
 
+    private fun setupChainTab() {
+        binding.chainMetaLabel.text = RobinhoodChainTracker.networkMetaLine()
+        val prefs = getSharedPreferences("chain_prefs", MODE_PRIVATE)
+        chainCategoryId = prefs.getString("default_category", RobinhoodChainTracker.DEFAULT_CATEGORY)
+            ?: RobinhoodChainTracker.DEFAULT_CATEGORY
+
+        val labels = RobinhoodChainTracker.categoryLabels()
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
+        binding.chainCategorySpinner.adapter = adapter
+        val idx = labels.indexOf(RobinhoodChainTracker.categoryLabelForId(chainCategoryId)).coerceAtLeast(0)
+        binding.chainCategorySpinner.setSelection(idx)
+        binding.chainCategoryDesc.text = RobinhoodChainTracker.categoryDescription(chainCategoryId)
+
+        binding.chainCategorySpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: android.view.View?,
+                    position: Int,
+                    id: Long,
+                ) {
+                    if (!chainSpinnerReady) {
+                        chainSpinnerReady = true
+                        return
+                    }
+                    val label = labels.getOrNull(position) ?: return
+                    chainCategoryId = RobinhoodChainTracker.categoryIdForLabel(label)
+                    binding.chainCategoryDesc.text =
+                        RobinhoodChainTracker.categoryDescription(chainCategoryId)
+                    refreshBlockchain()
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+
+        // empty state card
+        renderCoinCards(emptyList(), placeholder = getString(R.string.chain_status_idle))
+    }
+
+    private fun saveChainDefaultCategory() {
+        getSharedPreferences("chain_prefs", MODE_PRIVATE)
+            .edit()
+            .putString("default_category", chainCategoryId)
+            .apply()
+        binding.chainStatus.text = getString(
+            R.string.chain_default_saved,
+            RobinhoodChainTracker.categoryLabelForId(chainCategoryId),
+        )
+        binding.chainStatus.setTextColor(Color.parseColor("#10B981"))
+    }
+
     private fun setChainBusy(busy: Boolean) {
         binding.chainRefreshButton.isEnabled = !busy
         binding.chainSelfTestButton.isEnabled = !busy
         binding.chainAddContractButton.isEnabled = !busy
+        binding.chainDefaultButton.isEnabled = !busy
+        binding.chainCategorySpinner.isEnabled = !busy
+        binding.chainLivePill.text =
+            if (busy) getString(R.string.chain_loading_pill) else getString(R.string.chain_live)
     }
 
     private fun refreshBlockchain() {
         setChainBusy(true)
         binding.chainStatus.setText(R.string.chain_status_loading)
         binding.chainStatus.setTextColor(Color.parseColor("#9CA3AF"))
+        val cat = chainCategoryId
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
-                    Result.success(RobinhoodChainTracker.fetchSnapshot(10))
+                    Result.success(RobinhoodChainTracker.fetchCategory(cat, 10))
                 } catch (e: Exception) {
                     Result.failure(e)
                 }
             }
             setChainBusy(false)
             result.fold(
-                onSuccess = { snap ->
+                onSuccess = { rows ->
                     try {
-                        binding.chainRwaText.text =
-                            RobinhoodChainTracker.formatTable(snap.rwa, "RWA / stock tokens")
-                        binding.chainMemeText.text =
-                            RobinhoodChainTracker.formatTable(snap.memes, "Top memecoins")
-                        binding.chainCustomText.text =
-                            if (snap.custom.isEmpty()) {
-                                getString(R.string.chain_custom_empty)
-                            } else {
-                                RobinhoodChainTracker.formatTable(snap.custom, "Custom")
-                            }
-                        binding.chainStatus.text = snap.status
+                        chainLoadedOnce = true
+                        renderCoinCards(rows)
+                        val ok = rows.count { it.error == null && (it.priceUsd != null || it.address.isNotEmpty()) }
+                        binding.chainStatus.text = getString(
+                            R.string.chain_status_loaded,
+                            RobinhoodChainTracker.categoryLabelForId(cat),
+                            ok,
+                            rows.size,
+                        )
                         binding.chainStatus.setTextColor(
-                            Color.parseColor(if (snap.ok) "#10B981" else "#F59E0B")
+                            Color.parseColor(if (ok > 0) "#10B981" else "#F59E0B")
                         )
                     } catch (e: Exception) {
                         binding.chainStatus.text = "UI update failed: ${e.message}"
@@ -171,8 +233,135 @@ class MainActivity : AppCompatActivity() {
                     binding.chainStatus.text =
                         "Refresh failed: ${e.javaClass.simpleName}: ${e.message}"
                     binding.chainStatus.setTextColor(Color.parseColor("#EF4444"))
+                    renderCoinCards(emptyList(), placeholder = e.message ?: "Error")
                 },
             )
+        }
+    }
+
+    private fun renderCoinCards(
+        rows: List<RobinhoodChainTracker.AssetQuote>,
+        placeholder: String? = null,
+    ) {
+        val container = binding.chainCoinsContainer
+        container.removeAllViews()
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        if (rows.isEmpty()) {
+            val empty = MaterialCardView(this).apply {
+                radius = dp(14).toFloat()
+                setCardBackgroundColor(Color.parseColor("#1E293B"))
+                cardElevation = 0f
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).also { it.bottomMargin = dp(8) }
+            }
+            val tv = TextView(this).apply {
+                text = placeholder ?: getString(R.string.chain_not_loaded)
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(28), dp(16), dp(28))
+            }
+            empty.addView(tv)
+            container.addView(empty)
+            return
+        }
+
+        rows.forEachIndexed { index, a ->
+            val card = MaterialCardView(this).apply {
+                radius = dp(14).toFloat()
+                setCardBackgroundColor(Color.parseColor("#1E293B"))
+                cardElevation = 0f
+                strokeWidth = dp(1)
+                strokeColor = Color.parseColor("#1E3A5F")
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).also { it.bottomMargin = dp(8) }
+            }
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+            }
+            val row1 = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val badge = TextView(this).apply {
+                text = " #${index + 1} "
+                setTextColor(Color.parseColor("#93C5FD"))
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setBackgroundColor(Color.parseColor("#1E3A8A"))
+                setPadding(dp(6), dp(2), dp(6), dp(2))
+            }
+            val sym = TextView(this).apply {
+                text = "  ${a.symbol}"
+                setTextColor(Color.parseColor("#F8FAFC"))
+                textSize = 16f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val chColor = when {
+                a.error != null -> Color.parseColor("#F87171")
+                a.changeH24 == null -> Color.parseColor("#94A3B8")
+                a.changeH24 >= 0 -> Color.parseColor("#34D399")
+                else -> Color.parseColor("#F87171")
+            }
+            val price = TextView(this).apply {
+                text = if (a.error != null) "—" else a.formatPrice()
+                setTextColor(Color.parseColor("#F8FAFC"))
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            val chg = TextView(this).apply {
+                text = if (a.error != null) "ERR" else a.formatChange()
+                setTextColor(chColor)
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(dp(10), 0, 0, 0)
+            }
+            row1.addView(badge)
+            row1.addView(sym)
+            row1.addView(price)
+            row1.addView(chg)
+
+            val name = TextView(this).apply {
+                text = a.name.ifBlank { " " }
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11f
+                setPadding(0, dp(2), 0, 0)
+            }
+            val meta = TextView(this).apply {
+                text = if (a.error != null) {
+                    a.error
+                } else {
+                    "Vol 24h  $${String.format(Locale.US, "%,.0f", a.volumeH24)}" +
+                        if (a.liquidityUsd > 0) {
+                            "  ·  Liq $${String.format(Locale.US, "%,.0f", a.liquidityUsd)}"
+                        } else ""
+                }
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11f
+                setPadding(0, dp(4), 0, 0)
+            }
+            val contract = TextView(this).apply {
+                text = a.address.ifBlank { "—" }
+                setTextColor(Color.parseColor("#60A5FA"))
+                textSize = 10f
+                setTextIsSelectable(true)
+                typeface = android.graphics.Typeface.MONOSPACE
+                setPadding(0, dp(4), 0, 0)
+            }
+            col.addView(row1)
+            col.addView(name)
+            col.addView(meta)
+            col.addView(contract)
+            card.addView(col)
+            container.addView(card)
         }
     }
 
@@ -218,6 +407,12 @@ class MainActivity : AppCompatActivity() {
         try {
             val addr = RobinhoodChainTracker.addCustom(raw)
             binding.chainContractEntry.setText("")
+            chainCategoryId = RobinhoodChainTracker.CAT_CUSTOM
+            val labels = RobinhoodChainTracker.categoryLabels()
+            val idx = labels.indexOf(RobinhoodChainTracker.categoryLabelForId(chainCategoryId))
+            if (idx >= 0) binding.chainCategorySpinner.setSelection(idx)
+            binding.chainCategoryDesc.text =
+                RobinhoodChainTracker.categoryDescription(chainCategoryId)
             binding.chainStatus.text = getString(R.string.chain_added, addr)
             binding.chainStatus.setTextColor(Color.parseColor("#10B981"))
             refreshBlockchain()

@@ -96,22 +96,24 @@
     <string name="temp_from_f">(from %1$s °F)</string>
 
     <!-- Blockchain / Robinhood Chain -->
-    <string name="chain_title">Blockchain · Robinhood Chain</string>
+    <string name="chain_title">Robinhood Chain</string>
+    <string name="chain_live">LIVE</string>
+    <string name="chain_loading_pill">…</string>
     <string name="chain_meta_placeholder">Robinhood Chain · loading network info…</string>
-    <string name="chain_refresh">Refresh prices</string>
-    <string name="chain_selftest">Self-test</string>
-    <string name="chain_status_idle">Tap Refresh to load RWA + top memecoins (DexScreener).</string>
+    <string name="chain_view_label">Market view</string>
+    <string name="chain_refresh">Refresh</string>
+    <string name="chain_set_default">★ Set default</string>
+    <string name="chain_selftest">Run self-test</string>
+    <string name="chain_status_idle">Choose a view and tap Refresh.</string>
     <string name="chain_status_loading">Fetching DexScreener…</string>
     <string name="chain_status_testing">Running self-tests…</string>
-    <string name="chain_rwa_header">RWA / stock tokens (defaults)</string>
-    <string name="chain_meme_header">Top 10 memecoins (24h vol)</string>
+    <string name="chain_status_loaded">%1$s · %2$d/%3$d ok · Robinhood Chain</string>
+    <string name="chain_default_saved">Default view saved: %1$s</string>
     <string name="chain_custom_header">Track custom contract</string>
     <string name="chain_contract_hint">0x… ERC-20 on Robinhood Chain</string>
     <string name="chain_add">Add</string>
     <string name="chain_not_loaded">— not loaded —</string>
-    <string name="chain_custom_empty">No custom contracts yet.</string>
-    <string name="chain_test_header">Self-test log</string>
-    <string name="chain_test_idle">Self-test checks DexScreener + contracts.</string>
+    <string name="chain_test_idle">Self-test log appears here.</string>
     <string name="chain_added">Added %1$s — refreshing…</string>
     <string name="chain_bad_contract">Invalid contract (need 0x + 40 hex chars).</string>
 
