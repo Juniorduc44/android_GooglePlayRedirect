@@ -46,11 +46,13 @@ class MainActivity : AppCompatActivity() {
         applyDistanceUnitLabels()
         applyWeightUnitLabels()
         applyTempUnitLabels()
+        binding.chainMetaLabel.text = RobinhoodChainTracker.networkMetaLine()
 
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_weight))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_temp))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_chain))
         binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_settings))
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
@@ -59,6 +61,12 @@ class MainActivity : AppCompatActivity() {
                     1 -> calculateTravel()
                     2 -> calculateWeight()
                     3 -> calculateTemp()
+                    4 -> {
+                        // Auto-refresh Chain tab when first opened if still idle
+                        if (binding.chainRwaText.text.toString().contains("not loaded")) {
+                            refreshBlockchain()
+                        }
+                    }
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
@@ -101,6 +109,10 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) { calculateTemp() }
         })
 
+        binding.chainRefreshButton.setOnClickListener { refreshBlockchain() }
+        binding.chainSelfTestButton.setOnClickListener { runBlockchainSelfTest() }
+        binding.chainAddContractButton.setOnClickListener { addChainContract() }
+
         setupResultSizeSettings()
         applyResultTextSize()
 
@@ -109,6 +121,109 @@ class MainActivity : AppCompatActivity() {
             phpToUsdRate = rate
             rateIsLive = live
             updateRateLabel()
+        }
+    }
+
+    // --- Blockchain (Robinhood Chain) ---
+
+    private fun setChainBusy(busy: Boolean) {
+        binding.chainRefreshButton.isEnabled = !busy
+        binding.chainSelfTestButton.isEnabled = !busy
+        binding.chainAddContractButton.isEnabled = !busy
+    }
+
+    private fun refreshBlockchain() {
+        setChainBusy(true)
+        binding.chainStatus.setText(R.string.chain_status_loading)
+        binding.chainStatus.setTextColor(Color.parseColor("#9CA3AF"))
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    Result.success(RobinhoodChainTracker.fetchSnapshot(10))
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+            setChainBusy(false)
+            result.fold(
+                onSuccess = { snap ->
+                    try {
+                        binding.chainRwaText.text =
+                            RobinhoodChainTracker.formatTable(snap.rwa, "RWA / stock tokens")
+                        binding.chainMemeText.text =
+                            RobinhoodChainTracker.formatTable(snap.memes, "Top memecoins")
+                        binding.chainCustomText.text =
+                            if (snap.custom.isEmpty()) {
+                                getString(R.string.chain_custom_empty)
+                            } else {
+                                RobinhoodChainTracker.formatTable(snap.custom, "Custom")
+                            }
+                        binding.chainStatus.text = snap.status
+                        binding.chainStatus.setTextColor(
+                            Color.parseColor(if (snap.ok) "#10B981" else "#F59E0B")
+                        )
+                    } catch (e: Exception) {
+                        binding.chainStatus.text = "UI update failed: ${e.message}"
+                        binding.chainStatus.setTextColor(Color.parseColor("#EF4444"))
+                    }
+                },
+                onFailure = { e ->
+                    binding.chainStatus.text =
+                        "Refresh failed: ${e.javaClass.simpleName}: ${e.message}"
+                    binding.chainStatus.setTextColor(Color.parseColor("#EF4444"))
+                },
+            )
+        }
+    }
+
+    private fun runBlockchainSelfTest() {
+        setChainBusy(true)
+        binding.chainStatus.setText(R.string.chain_status_testing)
+        binding.chainStatus.setTextColor(Color.parseColor("#9CA3AF"))
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    Result.success(RobinhoodChainTracker.runSelfTests())
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+            setChainBusy(false)
+            result.fold(
+                onSuccess = { tests ->
+                    val lines = tests.map { t ->
+                        val flag = if (t.ok) "PASS" else "FAIL"
+                        "[$flag] ${t.name} — ${t.detail}"
+                    }
+                    val failed = tests.count { !it.ok }
+                    val summary = "TOTAL ${tests.size - failed} passed, $failed failed of ${tests.size}"
+                    binding.chainTestLog.text = (lines + summary).joinToString("\n")
+                    binding.chainStatus.text =
+                        if (failed == 0) "Self-test passed." else "Self-test: $failed failure(s)."
+                    binding.chainStatus.setTextColor(
+                        Color.parseColor(if (failed == 0) "#10B981" else "#EF4444")
+                    )
+                },
+                onFailure = { e ->
+                    binding.chainTestLog.text = "Self-test crashed: ${e.message}"
+                    binding.chainStatus.text = "Self-test crashed: ${e.message}"
+                    binding.chainStatus.setTextColor(Color.parseColor("#EF4444"))
+                },
+            )
+        }
+    }
+
+    private fun addChainContract() {
+        val raw = binding.chainContractEntry.text?.toString()?.trim().orEmpty()
+        try {
+            val addr = RobinhoodChainTracker.addCustom(raw)
+            binding.chainContractEntry.setText("")
+            binding.chainStatus.text = getString(R.string.chain_added, addr)
+            binding.chainStatus.setTextColor(Color.parseColor("#10B981"))
+            refreshBlockchain()
+        } catch (e: Exception) {
+            binding.chainStatus.text = e.message ?: getString(R.string.chain_bad_contract)
+            binding.chainStatus.setTextColor(Color.parseColor("#EF4444"))
         }
     }
 

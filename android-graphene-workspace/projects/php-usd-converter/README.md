@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.6.0** (Blockchain / Robinhood Chain tracker) |
-| Android APK | **v1.6.0** convert/travel/weight/temp (`versionCode` 10600) |
+| Desktop toolkit | **v1.6.1** (Blockchain / Robinhood Chain tracker) |
+| Android APK | **v1.6.1** + **Chain tab** on Android (`versionCode` 10601) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,18 +18,25 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.6.0`
+Current version file: [`VERSION`](./VERSION) → `1.6.1`
 
 ### Changelog
 
+#### v1.6.1
+
+- **Android Chain tab** (was missing from v1.6.0 APK — desktop-only by mistake)
+- Same Robinhood Chain tracker: 5 RWAs, top memecoins, custom contract, self-test
+- Auto-refresh when you open the **Chain** tab
+
 #### v1.6.0
 
-- **Blockchain tab:** Robinhood Chain (4663) default price tracker via DexScreener
+- **Blockchain tab (desktop):** Robinhood Chain (4663) price tracker via DexScreener
 - ≥5 RWA/stock tokens (NVDA, TSLA, AAPL, GOOGL, MSFT) with contracts + prices
 - Top 10 memecoins by 24h volume; custom contract track; self-test + CLI probe
 - Plan: `docs/ROBINHOOD_CHAIN_PLAN.md` (passkey wallet Phase C — not shipped)
 - Local tool: `tools/browser-harness` clone docs in repo `tools/README.md`
 - **Translator:** still unfinished / not reliable
+- **Note:** Android UI for Chain was not included until **v1.6.1**
 
 #### v1.5.1
 
