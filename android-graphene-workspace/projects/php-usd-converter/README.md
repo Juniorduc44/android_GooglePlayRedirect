@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.6.2** (modern Chain market board) |
-| Android APK | **v1.6.2** Chain tab + category views (`versionCode` 10602) |
+| Desktop toolkit | **v1.6.3** (hamburger nav, full-screen sections) |
+| Android APK | **v1.6.3** sandwich menu nav (`versionCode` 10603) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |

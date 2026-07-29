@@ -560,42 +560,166 @@ class CurrencyConverterApp(ctk.CTk):
             )
 
     # ------------------------------------------------------------------- UI
+    # Section names (menu) — full content area, no top tab strip
+    NAV_SECTIONS = (
+        "Convert",
+        "Travel",
+        "Weight",
+        "Temp",
+        "Blockchain",
+        "Translator",
+        "Settings",
+    )
+
     def _build_ui(self):
+        # Top bar: title/subtitle left, sandwich menu top-right
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.header_frame.pack(pady=(12, 2), padx=20, fill="x")
+        self.header_frame.pack(pady=(10, 4), padx=16, fill="x")
 
+        titles = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        titles.pack(side="left", fill="x", expand=True)
         self.title_label = ctk.CTkLabel(
-            self.header_frame,
-            text="Currency Converter",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            titles,
+            text="Convert",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            anchor="w",
         )
-        self.title_label.pack()
-
+        self.title_label.pack(anchor="w")
         self.subtitle_label = ctk.CTkLabel(
-            self.header_frame,
+            titles,
             text="Philippine Peso (PHP)  ➔  US Dollar (USD)",
             font=ctk.CTkFont(size=12),
             text_color="#9CA3AF",
+            anchor="w",
         )
-        self.subtitle_label.pack(pady=(2, 0))
+        self.subtitle_label.pack(anchor="w", pady=(2, 0))
 
-        self.tabs = ctk.CTkTabview(self)
-        self.tabs.pack(pady=6, padx=12, fill="both", expand=True)
-        self.tabs.add("Convert")
-        self.tabs.add("Travel")
-        self.tabs.add("Weight")
-        self.tabs.add("Temp")
-        self.tabs.add("Blockchain")
-        self.tabs.add("Translator")
-        self.tabs.add("Settings")
+        self.menu_button = ctk.CTkButton(
+            self.header_frame,
+            text="☰",
+            width=44,
+            height=40,
+            corner_radius=10,
+            font=ctk.CTkFont(size=18, weight="bold"),
+            fg_color="#1E293B",
+            hover_color="#334155",
+            command=self._open_nav_menu,
+        )
+        self.menu_button.pack(side="right", padx=(8, 0))
 
-        self._build_convert_tab(self.tabs.tab("Convert"))
-        self._build_travel_tab(self.tabs.tab("Travel"))
-        self._build_weight_tab(self.tabs.tab("Weight"))
-        self._build_temp_tab(self.tabs.tab("Temp"))
-        self._build_blockchain_tab(self.tabs.tab("Blockchain"))
-        self._build_translator_tab(self.tabs.tab("Translator"))
-        self._build_settings_tab(self.tabs.tab("Settings"))
+        # Full remaining space for the active section only
+        self.content_host = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_host.pack(pady=(4, 8), padx=10, fill="both", expand=True)
+
+        self.section_frames: dict[str, ctk.CTkFrame] = {}
+        self.current_section = "Convert"
+        for name in self.NAV_SECTIONS:
+            frame = ctk.CTkFrame(self.content_host, fg_color="transparent")
+            self.section_frames[name] = frame
+
+        self._build_convert_tab(self.section_frames["Convert"])
+        self._build_travel_tab(self.section_frames["Travel"])
+        self._build_weight_tab(self.section_frames["Weight"])
+        self._build_temp_tab(self.section_frames["Temp"])
+        self._build_blockchain_tab(self.section_frames["Blockchain"])
+        self._build_translator_tab(self.section_frames["Translator"])
+        self._build_settings_tab(self.section_frames["Settings"])
+
+        self._show_section("Convert")
+
+    def _open_nav_menu(self):
+        """Sandwich menu: pick any tool / Settings without a top tab strip."""
+        if getattr(self, "_nav_popup", None) is not None:
+            try:
+                self._nav_popup.destroy()
+            except Exception:
+                pass
+            self._nav_popup = None
+
+        pop = ctk.CTkToplevel(self)
+        self._nav_popup = pop
+        pop.title("Menu")
+        pop.geometry("240x360")
+        pop.resizable(False, False)
+        pop.attributes("-topmost", True)
+        # Anchor near top-right of main window
+        try:
+            x = self.winfo_rootx() + self.winfo_width() - 260
+            y = self.winfo_rooty() + 50
+            pop.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+        ctk.CTkLabel(
+            pop,
+            text="Navigate",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(14, 8))
+
+        for name in self.NAV_SECTIONS:
+            is_cur = name == self.current_section
+            btn = ctk.CTkButton(
+                pop,
+                text=("●  " if is_cur else "○  ") + name,
+                height=36,
+                corner_radius=10,
+                anchor="w",
+                fg_color="#1D4ED8" if is_cur else "#1E293B",
+                hover_color="#2563EB" if is_cur else "#334155",
+                command=lambda n=name: self._nav_pick(n),
+            )
+            btn.pack(fill="x", padx=12, pady=3)
+
+        ctk.CTkButton(
+            pop,
+            text="Close",
+            height=32,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#475569",
+            command=pop.destroy,
+        ).pack(fill="x", padx=12, pady=(10, 14))
+
+    def _nav_pick(self, name: str):
+        try:
+            if getattr(self, "_nav_popup", None) is not None:
+                self._nav_popup.destroy()
+                self._nav_popup = None
+        except Exception:
+            pass
+        self._show_section(name)
+
+    def _show_section(self, name: str):
+        if name not in self.section_frames:
+            return
+        self.current_section = name
+        for n, frame in self.section_frames.items():
+            try:
+                frame.pack_forget()
+            except Exception:
+                pass
+        self.section_frames[name].pack(fill="both", expand=True)
+        self.title_label.configure(text=name)
+        # Section-specific subtitle / refresh
+        try:
+            if name == "Convert":
+                self._apply_direction_labels()
+            elif name == "Travel":
+                self.subtitle_label.configure(text="Distance & trip cost")
+            elif name == "Weight":
+                self.subtitle_label.configure(text="lb · kg · g")
+            elif name == "Temp":
+                self.subtitle_label.configure(text="Food / oven °C ↔ °F")
+            elif name == "Blockchain":
+                self.subtitle_label.configure(text="Robinhood Chain · markets")
+                if hasattr(self, "price_tracker"):
+                    self._blockchain_refresh()
+            elif name == "Translator":
+                self.subtitle_label.configure(text="Translate · multi-backend")
+            elif name == "Settings":
+                self.subtitle_label.configure(text="Display & AI keys")
+        except Exception:
+            pass
 
     def _build_convert_tab(self, parent):
         card = ctk.CTkFrame(parent, corner_radius=12)

@@ -118,6 +118,14 @@
     <string name="chain_bad_contract">Invalid contract (need 0x + 40 hex chars).</string>
 
     <string name="tab_settings">Settings</string>
+    <string name="menu_open">Open menu</string>
+    <string name="menu_title">Navigate</string>
+    <string name="section_convert">Convert</string>
+    <string name="section_travel">Travel</string>
+    <string name="section_weight">Weight</string>
+    <string name="section_temp">Temp</string>
+    <string name="section_chain">Chain</string>
+    <string name="section_settings">Settings</string>
     <string name="settings_display">Display</string>
     <string name="settings_result_size_help">Result text size for Convert, Travel, Weight, and Temp. Use Large or Extra large if results are hard to read.</string>
     <string name="size_small">Small</string>

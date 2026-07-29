@@ -5,16 +5,17 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.MenuItem
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.tabs.TabLayout
 import com.juniorduc44.phpusdconverter.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,6 +44,8 @@ class MainActivity : AppCompatActivity() {
     private var chainCategoryId: String = RobinhoodChainTracker.DEFAULT_CATEGORY
     private var chainSpinnerReady: Boolean = false
     private var chainLoadedOnce: Boolean = false
+    /** ViewFlipper index of the active tool section */
+    private var currentSection: Int = SECTION_CONVERT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,27 +61,9 @@ class MainActivity : AppCompatActivity() {
         applyTempUnitLabels()
         setupChainTab()
 
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_convert))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_travel))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_weight))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_temp))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_chain))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText(R.string.tab_settings))
-        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) {
-                binding.tabFlipper.displayedChild = tab.position
-                when (tab.position) {
-                    1 -> calculateTravel()
-                    2 -> calculateWeight()
-                    3 -> calculateTemp()
-                    4 -> {
-                        if (!chainLoadedOnce) refreshBlockchain()
-                    }
-                }
-            }
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
-            override fun onTabReselected(tab: TabLayout.Tab?) {}
-        })
+        // Sandwich menu (top-right) — all tools + Settings live here (no top tab strip)
+        binding.menuButton.setOnClickListener { showNavMenu() }
+        showSection(SECTION_CONVERT, fromMenu = false)
 
         binding.convertButton.setOnClickListener { convertCurrency() }
         binding.swapButton.setOnClickListener { swapDirection() }
@@ -129,6 +114,63 @@ class MainActivity : AppCompatActivity() {
             phpToUsdRate = rate
             rateIsLive = live
             updateRateLabel()
+        }
+    }
+
+    // --- Navigation (hamburger / sandwich menu) ---
+
+    private fun showNavMenu() {
+        val popup = PopupMenu(this, binding.menuButton, Gravity.END)
+        popup.menu.add(0, SECTION_CONVERT, 0, R.string.section_convert)
+        popup.menu.add(0, SECTION_TRAVEL, 1, R.string.section_travel)
+        popup.menu.add(0, SECTION_WEIGHT, 2, R.string.section_weight)
+        popup.menu.add(0, SECTION_TEMP, 3, R.string.section_temp)
+        popup.menu.add(0, SECTION_CHAIN, 4, R.string.section_chain)
+        popup.menu.add(0, SECTION_SETTINGS, 5, R.string.section_settings)
+        // Mark current
+        popup.menu.findItem(currentSection)?.isChecked = true
+        popup.menu.setGroupCheckable(0, true, true)
+        popup.setOnMenuItemClickListener { item: MenuItem ->
+            showSection(item.itemId, fromMenu = true)
+            true
+        }
+        popup.show()
+    }
+
+    private fun showSection(index: Int, fromMenu: Boolean) {
+        if (index !in 0..5) return
+        currentSection = index
+        binding.tabFlipper.displayedChild = index
+        when (index) {
+            SECTION_CONVERT -> {
+                binding.titleLabel.setText(R.string.section_convert)
+                // subtitle set by applyDirectionLabels
+                applyDirectionLabels()
+            }
+            SECTION_TRAVEL -> {
+                binding.titleLabel.setText(R.string.section_travel)
+                binding.subtitleLabel.text = getString(R.string.travel_currency_php)
+                calculateTravel()
+            }
+            SECTION_WEIGHT -> {
+                binding.titleLabel.setText(R.string.section_weight)
+                binding.subtitleLabel.setText(R.string.weight_hint)
+                calculateWeight()
+            }
+            SECTION_TEMP -> {
+                binding.titleLabel.setText(R.string.section_temp)
+                binding.subtitleLabel.setText(R.string.temp_hint_c)
+                calculateTemp()
+            }
+            SECTION_CHAIN -> {
+                binding.titleLabel.setText(R.string.section_chain)
+                binding.subtitleLabel.text = "Robinhood · ${RobinhoodChainTracker.CHAIN_ID}"
+                if (!chainLoadedOnce || fromMenu) refreshBlockchain()
+            }
+            SECTION_SETTINGS -> {
+                binding.titleLabel.setText(R.string.section_settings)
+                binding.subtitleLabel.text = getString(R.string.settings_display)
+            }
         }
     }
 
@@ -871,5 +913,11 @@ class MainActivity : AppCompatActivity() {
         private const val KM_PER_MILE = 1.609344
         private const val KG_PER_LB = 0.45359237
         private const val G_PER_KG = 1000.0
+        private const val SECTION_CONVERT = 0
+        private const val SECTION_TRAVEL = 1
+        private const val SECTION_WEIGHT = 2
+        private const val SECTION_TEMP = 3
+        private const val SECTION_CHAIN = 4
+        private const val SECTION_SETTINGS = 5
     }
 }
