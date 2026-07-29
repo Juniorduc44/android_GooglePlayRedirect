@@ -1,5 +1,7 @@
 package com.juniorduc44.phpusdconverter
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
@@ -13,6 +15,7 @@ import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
@@ -28,6 +31,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var walletStore: LocalWalletStore
     /** USD per 1 PHP */
     private var phpToUsdRate: Double = FALLBACK_RATE
     private var rateIsLive: Boolean = false
@@ -51,6 +55,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        walletStore = LocalWalletStore(this)
 
         binding.versionLabel.text = "v${BuildConfig.VERSION_NAME}"
         binding.rateInfoLabel.text = getString(R.string.fetching_rate)
@@ -60,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         applyWeightUnitLabels()
         applyTempUnitLabels()
         setupChainTab()
+        setupWalletTab()
 
         // Sandwich menu (top-right) — all tools + Settings live here (no top tab strip)
         binding.menuButton.setOnClickListener { showNavMenu() }
@@ -126,7 +132,8 @@ class MainActivity : AppCompatActivity() {
         popup.menu.add(0, SECTION_WEIGHT, 2, R.string.section_weight)
         popup.menu.add(0, SECTION_TEMP, 3, R.string.section_temp)
         popup.menu.add(0, SECTION_CHAIN, 4, R.string.section_chain)
-        popup.menu.add(0, SECTION_SETTINGS, 5, R.string.section_settings)
+        popup.menu.add(0, SECTION_WALLET, 5, R.string.section_wallet)
+        popup.menu.add(0, SECTION_SETTINGS, 6, R.string.section_settings)
         // Mark current
         popup.menu.findItem(currentSection)?.isChecked = true
         popup.menu.setGroupCheckable(0, true, true)
@@ -138,7 +145,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSection(index: Int, fromMenu: Boolean) {
-        if (index !in 0..5) return
+        if (index !in 0..6) return
         currentSection = index
         binding.tabFlipper.displayedChild = index
         when (index) {
@@ -165,12 +172,140 @@ class MainActivity : AppCompatActivity() {
             SECTION_CHAIN -> {
                 binding.titleLabel.setText(R.string.section_chain)
                 binding.subtitleLabel.text = "Robinhood · ${RobinhoodChainTracker.CHAIN_ID}"
-                if (!chainLoadedOnce || fromMenu) refreshBlockchain()
+                // Only auto-fetch markets once (DexScreener can be slow)
+                if (!chainLoadedOnce) refreshBlockchain()
+            }
+            SECTION_WALLET -> {
+                binding.titleLabel.setText(R.string.section_wallet)
+                binding.subtitleLabel.text = "Self-custody · chain 4663"
+                refreshWalletUi()
             }
             SECTION_SETTINGS -> {
                 binding.titleLabel.setText(R.string.section_settings)
                 binding.subtitleLabel.text = getString(R.string.settings_display)
             }
+        }
+    }
+
+    private fun setupWalletTab() {
+        binding.walletCreateButton.setOnClickListener { walletCreate() }
+        binding.walletUnlockButton.setOnClickListener { walletUnlock() }
+        binding.walletLockButton.setOnClickListener {
+            walletStore.lock()
+            refreshWalletUi()
+            binding.walletMessage.setText(R.string.wallet_locked)
+            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
+        }
+        binding.walletRefreshBalanceButton.setOnClickListener { walletRefreshBalance() }
+        binding.walletCopyButton.setOnClickListener { walletCopyAddress() }
+        refreshWalletUi()
+    }
+
+    private fun refreshWalletUi() {
+        try {
+            if (!walletStore.hasWallet) {
+                binding.walletStatus.setText(R.string.wallet_status_none)
+                binding.walletAddress.setText(R.string.wallet_address_none)
+                binding.walletBalance.setText(R.string.wallet_balance_none)
+                return
+            }
+            binding.walletStatus.setText(
+                if (walletStore.isUnlocked) R.string.wallet_status_unlocked
+                else R.string.wallet_status_locked
+            )
+            binding.walletAddress.text = "Address: ${walletStore.address}"
+        } catch (e: Exception) {
+            binding.walletMessage.text = e.message
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+        }
+    }
+
+    private fun walletCreate() {
+        val pw = binding.walletPassword.text?.toString().orEmpty()
+        if (pw.length < 6) {
+            binding.walletMessage.setText(R.string.wallet_need_password)
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        try {
+            val addr = walletStore.create(pw)
+            binding.walletPassword.setText("")
+            refreshWalletUi()
+            binding.walletMessage.text = getString(R.string.wallet_created) + "\n$addr"
+            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
+            walletRefreshBalance()
+        } catch (e: Exception) {
+            binding.walletMessage.text = e.message
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+        }
+    }
+
+    private fun walletUnlock() {
+        val pw = binding.walletPassword.text?.toString().orEmpty()
+        try {
+            walletStore.unlock(pw)
+            binding.walletPassword.setText("")
+            refreshWalletUi()
+            binding.walletMessage.setText(R.string.wallet_unlocked)
+            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
+            walletRefreshBalance()
+        } catch (e: Exception) {
+            binding.walletMessage.setText(R.string.wallet_bad_password)
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+        }
+    }
+
+    private fun walletCopyAddress() {
+        val addr = walletStore.address
+        if (addr.isNullOrBlank()) {
+            binding.walletMessage.setText(R.string.wallet_status_none)
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("wallet", addr))
+        binding.walletMessage.setText(R.string.wallet_copied)
+        binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
+        Toast.makeText(this, R.string.wallet_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun walletRefreshBalance() {
+        val addr = walletStore.address
+        if (addr.isNullOrBlank()) {
+            binding.walletMessage.setText(R.string.wallet_status_none)
+            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        binding.walletMessage.text = "Querying Robinhood RPC…"
+        binding.walletMessage.setTextColor(Color.parseColor("#9CA3AF"))
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val cid = ChainRpc.ethChainId()
+                    val bal = ChainRpc.ethGetBalanceEth(addr)
+                    Result.success(cid to bal)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+            result.fold(
+                onSuccess = { (cid, bal) ->
+                    binding.walletBalance.text = "ETH balance: $bal ETH"
+                    binding.walletNetwork.text =
+                        "Network: Robinhood · chain $cid (expect ${ChainRpc.CHAIN_ID})"
+                    binding.walletMessage.text =
+                        if (cid == ChainRpc.CHAIN_ID) "RPC OK"
+                        else "WARNING: chainId $cid ≠ ${ChainRpc.CHAIN_ID}"
+                    binding.walletMessage.setTextColor(
+                        Color.parseColor(if (cid == ChainRpc.CHAIN_ID) "#10B981" else "#F59E0B")
+                    )
+                },
+                onFailure = { e ->
+                    binding.walletBalance.text = "ETH balance: (RPC error)"
+                    binding.walletMessage.text = "RPC: ${e.message}"
+                    binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
+                },
+            )
         }
     }
 
@@ -918,6 +1053,7 @@ class MainActivity : AppCompatActivity() {
         private const val SECTION_WEIGHT = 2
         private const val SECTION_TEMP = 3
         private const val SECTION_CHAIN = 4
-        private const val SECTION_SETTINGS = 5
+        private const val SECTION_WALLET = 5
+        private const val SECTION_SETTINGS = 6
     }
 }

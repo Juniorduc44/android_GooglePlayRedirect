@@ -19,13 +19,22 @@ from .dexscreener import (
 )
 from .networks import DEFAULT_NETWORK_ID, Network, get_network
 
-# Broader seed set for volume / momentum discovery
-_VOLUME_SEED_QUERIES = tuple(
-    dict.fromkeys(
-        list(MEME_SEED_QUERIES)
-        + ["NVDA", "TSLA", "AAPL", "USDG", "WETH", "stock", "token", "ETH"]
-    )
+# Lean seed set — full list was too slow (many sequential DexScreener calls)
+_VOLUME_SEED_QUERIES = (
+    "robinhood",
+    "USDG",
+    "NVDA",
+    "TSLA",
+    "AAPL",
+    "meme",
+    "pepe",
+    "doge",
+    "cat",
+    "ai",
 )
+# In-process cache so switching categories / re-opening isn't glacial
+_PAIR_CACHE: dict[str, tuple[float, list]] = {}
+_PAIR_CACHE_TTL_SEC = 90.0
 
 
 @dataclass
@@ -295,17 +304,29 @@ class PriceTracker:
                 out.append(_from_pair(pq, "custom"))
         return out
 
-    def _discover_pairs(self) -> list[PairQuote]:
-        """Union of search results for volume/momentum rankings."""
+    def _discover_pairs(self, *, force: bool = False) -> list[PairQuote]:
+        """Union of search results for volume/momentum rankings (cached ~90s)."""
+        import time as _time
+
         net = self.network
+        cache_key = net.dexscreener_slug
+        now = _time.time()
+        if not force and cache_key in _PAIR_CACHE:
+            ts, pairs = _PAIR_CACHE[cache_key]
+            if now - ts < _PAIR_CACHE_TTL_SEC and pairs:
+                return list(pairs)
+
         all_pairs: list[PairQuote] = []
+        # Parallel-ish: short sleep only between calls; fewer queries overall
         for q in _VOLUME_SEED_QUERIES:
             try:
-                all_pairs.extend(search_pairs(q, chain=net.dexscreener_slug))
-                sleep_politely(0.08)
+                all_pairs.extend(search_pairs(q, chain=net.dexscreener_slug, timeout=12.0))
             except Exception:
                 continue
-        return list(best_pair_per_token(all_pairs).values())
+            sleep_politely(0.05)
+        pairs = list(best_pair_per_token(all_pairs).values())
+        _PAIR_CACHE[cache_key] = (now, pairs)
+        return pairs
 
     def fetch_top_volume(self, limit: int = 10) -> list[TrackedAsset]:
         """Top tokens by 24h volume (all categories)."""

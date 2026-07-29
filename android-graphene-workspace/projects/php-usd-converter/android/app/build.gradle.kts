@@ -11,8 +11,8 @@ android {
         applicationId = "com.juniorduc44.phpusdconverter"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10603
-        versionName = "1.6.3"
+        versionCode = 10700
+        versionName = "1.7.0"
     }
 
     // Optional release signing via env vars (keystore not in git):
@@ -71,4 +71,6 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    // EOA key generation / address for Robinhood Chain wallet tab
+    implementation("org.web3j:crypto:4.9.8")
 }

@@ -22,6 +22,8 @@ from blockchain.selftest import run_selftests, summarize as summarize_selftests
 from blockchain.tracker import PriceTracker, TrackedAsset
 from translator import LANGUAGES, SecretsStore, get_backend, list_backends
 from translator.backends import BACKEND_LABELS
+from wallet.keystore import WalletKeystore
+from wallet.rpc import DEFAULT_RH_RPC, EXPECTED_CHAIN_ID, eth_chain_id, eth_get_balance_eth
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -117,6 +119,9 @@ class CurrencyConverterApp(ctk.CTk):
         cat = self._settings.get("chain_default_category", DEFAULT_CATEGORY)
         self.chain_category_id = cat if isinstance(cat, str) else DEFAULT_CATEGORY
         self._coin_cards: list = []
+        self._chain_loaded_once = False
+        self.wallet_store = WalletKeystore()
+        self._wallet_busy = False
 
         self.exchange_rate = self.get_live_rate()
         self.php_to_usd = True  # Convert tab primary currency
@@ -580,6 +585,7 @@ class CurrencyConverterApp(ctk.CTk):
         "Weight",
         "Temp",
         "Blockchain",
+        "Wallet",
         "Translator",
         "Settings",
     )
@@ -635,6 +641,7 @@ class CurrencyConverterApp(ctk.CTk):
         self._build_weight_tab(self.section_frames["Weight"])
         self._build_temp_tab(self.section_frames["Temp"])
         self._build_blockchain_tab(self.section_frames["Blockchain"])
+        self._build_wallet_tab(self.section_frames["Wallet"])
         self._build_translator_tab(self.section_frames["Translator"])
         self._build_settings_tab(self.section_frames["Settings"])
 
@@ -652,7 +659,7 @@ class CurrencyConverterApp(ctk.CTk):
         pop = ctk.CTkToplevel(self)
         self._nav_popup = pop
         pop.title("Menu")
-        pop.geometry("240x360")
+        pop.geometry("240x420")
         pop.resizable(False, False)
         pop.attributes("-topmost", True)
         # Anchor near top-right of main window
@@ -725,8 +732,15 @@ class CurrencyConverterApp(ctk.CTk):
                 self.subtitle_label.configure(text="Food / oven °C ↔ °F")
             elif name == "Blockchain":
                 self.subtitle_label.configure(text="Robinhood Chain · markets")
-                if hasattr(self, "price_tracker"):
+                # Only auto-load once — full discovery is slow; user can Refresh
+                if hasattr(self, "price_tracker") and not getattr(
+                    self, "_chain_loaded_once", False
+                ):
                     self._blockchain_refresh()
+            elif name == "Wallet":
+                self.subtitle_label.configure(text="Robinhood Chain · self-custody")
+                if hasattr(self, "_wallet_refresh_ui"):
+                    self._wallet_refresh_ui()
             elif name == "Translator":
                 self.subtitle_label.configure(text="Translate · multi-backend")
             elif name == "Settings":
@@ -1489,6 +1503,7 @@ class CurrencyConverterApp(ctk.CTk):
 
                 def apply():
                     try:
+                        self._chain_loaded_once = True
                         self._render_coin_cards(rows)
                         self.chain_status.configure(text=msg, text_color=color)
                     except Exception as e:
@@ -1568,6 +1583,323 @@ class CurrencyConverterApp(ctk.CTk):
 
         self._blockchain_set_busy(True)
         self.chain_status.configure(text="Running self-tests…", text_color="#94A3B8")
+        threading.Thread(target=work, daemon=True).start()
+
+    # -------------------------------------------------------------- wallet
+    def _build_wallet_tab(self, parent):
+        """Self-custody wallet for Robinhood Chain (separate from markets)."""
+        scroll = ctk.CTkScrollableFrame(parent, corner_radius=14, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=4, pady=4)
+
+        hero = ctk.CTkFrame(scroll, corner_radius=16, fg_color=("#1E293B", "#0F172A"))
+        hero.pack(fill="x", padx=4, pady=(4, 10))
+        ctk.CTkLabel(
+            hero,
+            text="Wallet · Robinhood Chain",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(
+            hero,
+            text=(
+                "Self-custody EOA on chain 4663 (password-encrypted keystore).\n"
+                "This is NOT Robinhood brokerage login and NOT hood.dev's passkey UI yet —\n"
+                "it's the working foundation (create / unlock / balance). Passkey + ERC-4337 is next."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 12))
+
+        # Status card
+        status_card = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#111827", "#020617"))
+        status_card.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            status_card,
+            text="Status",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#64748B",
+        ).pack(anchor="w", padx=14, pady=(10, 2))
+        self.wallet_status_label = ctk.CTkLabel(
+            status_card,
+            text="No wallet loaded",
+            font=ctk.CTkFont(size=13),
+            text_color="#E2E8F0",
+        )
+        self.wallet_status_label.pack(anchor="w", padx=14, pady=(0, 4))
+        self.wallet_address_label = ctk.CTkLabel(
+            status_card,
+            text="Address: —",
+            font=ctk.CTkFont(size=12, family="monospace"),
+            text_color="#60A5FA",
+            wraplength=480,
+            justify="left",
+        )
+        self.wallet_address_label.pack(anchor="w", padx=14, pady=(0, 4))
+        self.wallet_balance_label = ctk.CTkLabel(
+            status_card,
+            text="ETH balance: —",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#F8FAFC",
+        )
+        self.wallet_balance_label.pack(anchor="w", padx=14, pady=(0, 4))
+        self.wallet_network_label = ctk.CTkLabel(
+            status_card,
+            text=f"Network: Robinhood Chain ({EXPECTED_CHAIN_ID}) · {DEFAULT_RH_RPC}",
+            font=ctk.CTkFont(size=10),
+            text_color="#64748B",
+            wraplength=480,
+            justify="left",
+        )
+        self.wallet_network_label.pack(anchor="w", padx=14, pady=(0, 12))
+
+        # Create / unlock
+        form = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
+        form.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            form,
+            text="Password (encrypts private key on disk)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        self.wallet_password = ctk.CTkEntry(
+            form, height=36, show="•", placeholder_text="min 6 characters"
+        )
+        self.wallet_password.pack(fill="x", padx=14, pady=2)
+
+        btn_row = ctk.CTkFrame(form, fg_color="transparent")
+        btn_row.pack(fill="x", padx=14, pady=10)
+        ctk.CTkButton(
+            btn_row,
+            text="Create wallet",
+            width=120,
+            height=36,
+            corner_radius=10,
+            command=self._wallet_create,
+        ).pack(side="left")
+        ctk.CTkButton(
+            btn_row,
+            text="Unlock",
+            width=90,
+            height=36,
+            corner_radius=10,
+            fg_color="#334155",
+            command=self._wallet_unlock,
+        ).pack(side="left", padx=8)
+        ctk.CTkButton(
+            btn_row,
+            text="Lock",
+            width=70,
+            height=36,
+            corner_radius=10,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#475569",
+            command=self._wallet_lock,
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            form,
+            text="Import existing private key (optional)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(6, 2))
+        self.wallet_import_pk = ctk.CTkEntry(
+            form, height=34, placeholder_text="0x… private key", show="•"
+        )
+        self.wallet_import_pk.pack(fill="x", padx=14, pady=2)
+        ctk.CTkButton(
+            form,
+            text="Import & encrypt",
+            height=34,
+            corner_radius=10,
+            fg_color="#1D4ED8",
+            command=self._wallet_import,
+        ).pack(fill="x", padx=14, pady=(6, 12))
+
+        actions = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
+        actions.pack(fill="x", padx=4, pady=6)
+        ctk.CTkButton(
+            actions,
+            text="Refresh balance",
+            height=36,
+            corner_radius=10,
+            command=self._wallet_refresh_balance,
+        ).pack(fill="x", padx=14, pady=(12, 6))
+        ctk.CTkButton(
+            actions,
+            text="Copy address",
+            height=36,
+            corner_radius=10,
+            fg_color="#334155",
+            command=self._wallet_copy_address,
+        ).pack(fill="x", padx=14, pady=4)
+        ctk.CTkButton(
+            actions,
+            text="Show private key (unlocked only)",
+            height=34,
+            corner_radius=10,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#B45309",
+            text_color="#FBBF24",
+            command=self._wallet_show_pk,
+        ).pack(fill="x", padx=14, pady=4)
+        ctk.CTkButton(
+            actions,
+            text="Delete local wallet",
+            height=34,
+            corner_radius=10,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#7F1D1D",
+            text_color="#F87171",
+            command=self._wallet_delete,
+        ).pack(fill="x", padx=14, pady=(4, 12))
+
+        self.wallet_msg = ctk.CTkLabel(
+            scroll,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+            wraplength=480,
+            justify="left",
+        )
+        self.wallet_msg.pack(anchor="w", padx=8, pady=(4, 12))
+        self._wallet_refresh_ui()
+
+    def _wallet_msg_set(self, text: str, ok: bool = True):
+        self.wallet_msg.configure(
+            text=text, text_color="#34D399" if ok else "#F87171"
+        )
+
+    def _wallet_refresh_ui(self):
+        try:
+            store = self.wallet_store
+            if not store.has_wallet:
+                self.wallet_status_label.configure(text="No local wallet yet")
+                self.wallet_address_label.configure(text="Address: —")
+                self.wallet_balance_label.configure(text="ETH balance: —")
+                return
+            addr = store.address or "—"
+            if store.is_unlocked:
+                self.wallet_status_label.configure(text="Unlocked · self-custody EOA")
+            else:
+                self.wallet_status_label.configure(text="Locked · enter password to unlock")
+            self.wallet_address_label.configure(text=f"Address: {addr}")
+        except Exception as e:
+            self._wallet_msg_set(f"UI error: {e}", ok=False)
+
+    def _wallet_create(self):
+        pw = self.wallet_password.get()
+        try:
+            rec = self.wallet_store.create(pw)
+            self.wallet_password.delete(0, "end")
+            self._wallet_refresh_ui()
+            self._wallet_msg_set(
+                f"Created {rec.address} — password encrypts the key in wallet_keystore.json"
+            )
+            self._wallet_refresh_balance()
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_unlock(self):
+        pw = self.wallet_password.get()
+        try:
+            rec = self.wallet_store.unlock(pw)
+            self.wallet_password.delete(0, "end")
+            self._wallet_refresh_ui()
+            self._wallet_msg_set(f"Unlocked {rec.address}")
+            self._wallet_refresh_balance()
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_lock(self):
+        try:
+            self.wallet_store.lock()
+            self._wallet_refresh_ui()
+            self._wallet_msg_set("Wallet locked", ok=True)
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_import(self):
+        pw = self.wallet_password.get()
+        pk = self.wallet_import_pk.get()
+        try:
+            rec = self.wallet_store.import_private_key(pk, pw)
+            self.wallet_password.delete(0, "end")
+            self.wallet_import_pk.delete(0, "end")
+            self._wallet_refresh_ui()
+            self._wallet_msg_set(f"Imported {rec.address}")
+            self._wallet_refresh_balance()
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_copy_address(self):
+        addr = self.wallet_store.address
+        if not addr:
+            self._wallet_msg_set("No address to copy", ok=False)
+            return
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(addr)
+            self._wallet_msg_set("Address copied to clipboard")
+        except Exception as e:
+            self._wallet_msg_set(f"Copy failed: {e}", ok=False)
+
+    def _wallet_show_pk(self):
+        try:
+            pk = self.wallet_store.export_private_key()
+            self._wallet_msg_set(
+                f"PRIVATE KEY (keep secret):\n{pk}",
+                ok=False,
+            )
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_delete(self):
+        try:
+            self.wallet_store.delete()
+            self._wallet_refresh_ui()
+            self.wallet_balance_label.configure(text="ETH balance: —")
+            self._wallet_msg_set("Local keystore deleted")
+        except Exception as e:
+            self._wallet_msg_set(str(e), ok=False)
+
+    def _wallet_refresh_balance(self):
+        addr = self.wallet_store.address
+        if not addr:
+            self._wallet_msg_set("Create or unlock a wallet first", ok=False)
+            return
+        if self._wallet_busy:
+            return
+
+        def work():
+            try:
+                cid = eth_chain_id(timeout=10.0)
+                bal = eth_get_balance_eth(addr, timeout=10.0)
+                msg = f"RPC chainId={cid} (expect {EXPECTED_CHAIN_ID})"
+                if cid != EXPECTED_CHAIN_ID:
+                    msg += " · WARNING: unexpected chain"
+
+                def apply():
+                    self.wallet_balance_label.configure(
+                        text=f"ETH balance: {bal:.6f} ETH"
+                    )
+                    self.wallet_network_label.configure(
+                        text=f"Network: Robinhood · chain {cid} · {DEFAULT_RH_RPC}"
+                    )
+                    self._wallet_msg_set(msg)
+                    self._wallet_busy = False
+
+                self.after(0, apply)
+            except Exception as e:
+                def fail():
+                    self.wallet_balance_label.configure(text="ETH balance: (RPC error)")
+                    self._wallet_msg_set(f"Balance RPC: {e}", ok=False)
+                    self._wallet_busy = False
+
+                self.after(0, fail)
+
+        self._wallet_busy = True
+        self._wallet_msg_set("Querying Robinhood RPC…")
         threading.Thread(target=work, daemon=True).start()
 
     # ------------------------------------------------------------ translator

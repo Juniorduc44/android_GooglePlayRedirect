@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.6.3** (hamburger nav, full-screen sections) |
-| Android APK | **v1.6.3** sandwich menu nav (`versionCode` 10603) |
+| Desktop toolkit | **v1.7.0** (Wallet + faster Chain) |
+| Android APK | **v1.7.0** Wallet section (`versionCode` 10700) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,9 +18,15 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.6.2`
+Current version file: [`VERSION`](./VERSION) → `1.6.3`
 
 ### Changelog
+
+#### v1.6.3
+
+- **Sandwich / hamburger menu** (top-right) — all tools + Settings live in the menu
+- **No top tab strip** — full screen used by the active section
+- Title bar shows current section only (more room for in-tab controls later)
 
 #### v1.6.2
 

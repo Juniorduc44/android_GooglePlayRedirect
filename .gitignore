@@ -44,3 +44,4 @@ venv/
 user_settings.json
 vendor/
 secrets.json
+wallet_keystore.json
