@@ -109,14 +109,52 @@ Use later for: hood.dev passkey/wallet flows, Robinhood docs JS pages, visual ve
 - CoinGecko if they list RH chain IDs
 - Optional: RH Crypto Trading API from PDF for **brokerage** crypto (US only) — separate from chain
 
-### Phase C — passkey smart wallet (plan only)
+### Phase C — passkey smart wallet (plan status)
 
-1. Map hood.dev connect flow with browser-harness (screenshots + network tab).
-2. Choose AA stack (Alchemy Account Kit / permissionless.js / viem) targeting chain **4663**.
-3. WebAuthn create → smart account factory deploy (or counterfactual address).
-4. Gas sponsorship policy for first txs.
-5. In-app “Blockchain → Wallet” sub-tab: create / restore passkey, show address, no seed phrase UX.
-6. Security review + GrapheneOS-friendly storage (Android Keystore / platform authenticator).
+#### Is the plan complete?
+
+| Piece | Status |
+|---|---|
+| Chain identity (4663, RPC, explorer, AA support) | **Done** (docs + app network card) |
+| Price / market data path | **Done** (DexScreener) |
+| hood.dev public product mapped | **Partial** — see below |
+| Exact hood.dev “passkey → ERC-20 wallet in ms” reverse-engineer | **Not complete** |
+| App wallet UI / signing | **Not started** |
+| Legal/product framing | **Drafted** (self-custody, not RH brokerage login) |
+
+#### What hood.dev actually is (re-checked)
+
+- **hood.dev /launch** is a **token launchpad** on Robinhood Chain: name/symbol → deploy ERC-20 + Uniswap/Sushi V3 pool, LP locked, anti-sniper caps.
+- Public UI says **“Connect a wallet to generate your address”** — classic wallet-connect / injected EVM wallet, **not** a documented open “clone this passkey API” product.
+- We did **not** obtain: their smart-account factory address, WebAuthn contract, bundler URL, or paymaster policy. Those require browser-harness session capture against a live login (and may be closed-source / proprietary).
+
+#### Is passkey-style login **possible** in our app?
+
+**Yes, in principle — as our own wallet UX on Robinhood Chain, not by embedding hood.dev’s private login.**
+
+Feasible architecture (industry-standard, works on chain 4663 because RH documents **ERC-4337**):
+
+1. **WebAuthn / platform passkey** (Android Credential Manager / browser `navigator.credentials`) creates a P-256 key the user never sees.
+2. That key owns an **ERC-4337 smart account** on RH Chain (Alchemy Account Kit, ZeroDev, Biconomy, or permissionless.js + a factory).
+3. **Bundler + optional paymaster** (Alchemy gasless) so first txs feel “milliseconds / no gas UX.”
+4. App stores only: account address + credential id handle (Android Keystore / encrypted prefs). **No seed phrase** in the happy path.
+5. GrapheneOS: prefer hardware-backed keys; no GMS-required APIs if we stick to AndroidX Credential Manager + standard WebAuthn.
+
+**Not feasible / not recommended:**
+
+- Calling hood.dev’s internal passkey endpoints without their permission/API (brittle, ToS, may break anytime).
+- Claiming “Robinhood login” or reusing their branding for auth.
+- Shipping a full wallet without security review, recovery UX, and clear “self-custody / not RH broker” copy.
+
+#### Recommended next steps when you green-light Phase C
+
+1. browser-harness session on hood.dev: capture whether they use WalletConnect, injected `window.ethereum`, or a true WebAuthn popup.
+2. Spike Alchemy Account Kit on chain **4663** (create SA, one sponsored transfer, one Uniswap read).
+3. Desktop-first “Wallet” panel under Chain: Create passkey wallet · Show address · Copy · (later) sign typed data.
+4. Android second: Credential Manager + same AA backend.
+5. Only then consider hood.dev launch *integration* as “open external launchpad with our address,” not clone.
+
+**Bottom line:** Plan for **data** is complete and shipped. Plan for **passkey wallet** is directionally complete and **technically possible** on RH Chain via AA + WebAuthn; it is **not** “copy hood.dev’s login binary.” Implementation is still Phase C work, not in the app yet.
 
 ---
 

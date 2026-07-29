@@ -39,11 +39,19 @@
 
 ## Cloud model IDs (xAI)
 
-Prefer current docs: https://docs.x.ai/docs/models
+Prefer current docs: https://docs.x.ai/developers/models
 
-- `grok-4.5` — default flagship  
-- `grok-4.3` — strong mid  
-- `grok-3-mini` — cheaper/faster if available on account  
+Settings UI offers a **dropdown + manual entry** (source of truth = entry field).
+
+| Slug | Role |
+|---|---|
+| `grok-4.5` | Default flagship (code + chat) |
+| `grok-4.3` | Strong mid / retirement redirect target for older slugs |
+| `grok-4.20-reasoning` | Reasoning variant (if enabled on account) |
+| `grok-4.20-non-reasoning` | Non-reasoning variant |
+| `grok-4.1-fast-reasoning` | Fast tier (some slugs retired May 2026 → may redirect) |
+| `grok-4.1-fast-non-reasoning` | Fast non-reasoning |
+| `grok-3-mini` | Legacy/cheaper if still on account |
 
 Chat endpoint: `POST https://api.x.ai/v1/chat/completions`  
 Billing (403 no credits): https://console.x.ai/

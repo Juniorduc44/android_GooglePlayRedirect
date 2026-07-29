@@ -26,6 +26,19 @@ from translator.backends import BACKEND_LABELS
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+# xAI / Grok chat models offered in Settings (API slugs as of mid-2026 docs).
+# User can still type any model id in the entry field.
+XAI_GROK_MODELS: tuple[str, ...] = (
+    "grok-4.5",
+    "grok-4.3",
+    "grok-4.20-reasoning",
+    "grok-4.20-non-reasoning",
+    "grok-4.1-fast-reasoning",
+    "grok-4.1-fast-non-reasoning",
+    "grok-3-mini",
+    "Custom…",
+)
+
 KM_PER_MILE = 1.609344
 # International avoirdupois pound
 KG_PER_LB = 0.45359237
@@ -1835,17 +1848,56 @@ class CurrencyConverterApp(ctk.CTk):
         self.set_ollama_model.insert(0, str(self.secrets.get("ollama_model", "tinyllama")))
         self.set_ollama_model.pack(fill="x", padx=12, pady=2)
 
-        # xAI
+        # xAI / Grok
         ctk.CTkLabel(
             card,
             text=f"xAI / Grok API key  {SecretsStore.mask_key(str(self.secrets.get('xai_api_key') or ''))}",
             font=ctk.CTkFont(size=12, weight="bold"),
         ).pack(anchor="w", padx=12, pady=(10, 0))
-        self.set_xai_key = ctk.CTkEntry(card, height=32, placeholder_text="xai-… (leave blank to keep)")
+        self.set_xai_key = ctk.CTkEntry(
+            card, height=32, placeholder_text="xai-… (leave blank to keep)"
+        )
         self.set_xai_key.pack(fill="x", padx=12, pady=2)
-        self.set_xai_model = ctk.CTkEntry(card, height=32, placeholder_text="model e.g. grok-4.5")
-        self.set_xai_model.insert(0, str(self.secrets.get("xai_model", "grok-4.5")))
+
+        ctk.CTkLabel(
+            card,
+            text="Grok model",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(8, 0))
+        ctk.CTkLabel(
+            card,
+            text="Pick a preset or choose Custom… and type any API model id below.",
+            font=ctk.CTkFont(size=11),
+            text_color="#6B7280",
+        ).pack(anchor="w", padx=12, pady=(0, 2))
+
+        current_xai = str(self.secrets.get("xai_model", "grok-4.5") or "grok-4.5").strip()
+        self.set_xai_model_menu = ctk.CTkOptionMenu(
+            card,
+            values=list(XAI_GROK_MODELS),
+            width=280,
+            height=32,
+            command=self._on_xai_model_preset,
+        )
+        if current_xai in XAI_GROK_MODELS and current_xai != "Custom…":
+            self.set_xai_model_menu.set(current_xai)
+        else:
+            self.set_xai_model_menu.set("Custom…")
+        self.set_xai_model_menu.pack(anchor="w", padx=12, pady=2)
+
+        self.set_xai_model = ctk.CTkEntry(
+            card,
+            height=32,
+            placeholder_text="Manual model id (e.g. grok-4.5)",
+        )
+        self.set_xai_model.insert(0, current_xai)
         self.set_xai_model.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(
+            card,
+            text="Saved value = the field above (dropdown only fills it). Credits: console.x.ai",
+            font=ctk.CTkFont(size=10),
+            text_color="#6B7280",
+        ).pack(anchor="w", padx=12, pady=(0, 4))
 
         # OpenAI
         ctk.CTkLabel(
@@ -1897,13 +1949,30 @@ class CurrencyConverterApp(ctk.CTk):
             justify="left",
         ).pack(anchor="w", padx=12, pady=(4, 16))
 
+    def _on_xai_model_preset(self, choice: str):
+        """Dropdown fills the model entry; Custom… leaves the field for manual type-in."""
+        try:
+            if choice == "Custom…":
+                # Keep whatever is already typed; focus the entry
+                self.set_xai_model.focus_set()
+                return
+            self.set_xai_model.delete(0, "end")
+            self.set_xai_model.insert(0, choice)
+        except Exception:
+            pass
+
     def _save_ai_settings(self):
         self.secrets.set("ollama_base_url", self.set_ollama_url.get().strip())
         self.secrets.set("ollama_model", self.set_ollama_model.get().strip() or "tinyllama")
         xai = self.set_xai_key.get().strip()
         if xai:
             self.secrets.set("xai_api_key", xai)
-        self.secrets.set("xai_model", self.set_xai_model.get().strip() or "grok-4.5")
+        # Prefer manual entry (always the source of truth)
+        model = self.set_xai_model.get().strip()
+        if not model or model == "Custom…":
+            preset = self.set_xai_model_menu.get()
+            model = preset if preset and preset != "Custom…" else "grok-4.5"
+        self.secrets.set("xai_model", model)
         oai = self.set_openai_key.get().strip()
         if oai:
             self.secrets.set("openai_api_key", oai)
