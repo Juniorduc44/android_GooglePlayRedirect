@@ -1,7 +1,9 @@
-# Local Android SDK / platform-tools (large; re-download if needed)
+# Local Android SDK / platform-tools / browser-harness clone (large or nested git)
 tools/platform-tools/
 tools/android-sdk/
-tools/
+tools/browser-harness/
+tools/browser-harness-venv/
+# Keep tools/README.md tracked (clone instructions)
 
 # Android / build
 **/build/

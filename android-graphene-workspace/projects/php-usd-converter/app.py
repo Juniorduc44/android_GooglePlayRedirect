@@ -10,6 +10,9 @@ from pathlib import Path
 import customtkinter as ctk
 import requests
 
+from blockchain.networks import list_network_labels
+from blockchain.selftest import run_selftests, summarize as summarize_selftests
+from blockchain.tracker import PriceTracker, TrackedAsset
 from translator import LANGUAGES, SecretsStore, get_backend, list_backends
 from translator.backends import BACKEND_LABELS
 
@@ -77,9 +80,9 @@ class CurrencyConverterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Toolkit — Convert · Travel · Weight · Temp · Translator")
-        self.geometry("520x720")
-        self.minsize(440, 600)
+        self.title("Toolkit — Convert · Travel · Weight · Temp · Chain · Translator")
+        self.geometry("540x760")
+        self.minsize(460, 640)
         self.resizable(True, True)
 
         self._settings = load_settings()
@@ -89,6 +92,8 @@ class CurrencyConverterApp(ctk.CTk):
         self.result_text_size = size_key
         self.secrets = SecretsStore()
         self._translator_busy = False
+        self._blockchain_busy = False
+        self.price_tracker = PriceTracker("robinhood")
 
         self.exchange_rate = self.get_live_rate()
         self.php_to_usd = True  # Convert tab primary currency
@@ -570,6 +575,7 @@ class CurrencyConverterApp(ctk.CTk):
         self.tabs.add("Travel")
         self.tabs.add("Weight")
         self.tabs.add("Temp")
+        self.tabs.add("Blockchain")
         self.tabs.add("Translator")
         self.tabs.add("Settings")
 
@@ -577,6 +583,7 @@ class CurrencyConverterApp(ctk.CTk):
         self._build_travel_tab(self.tabs.tab("Travel"))
         self._build_weight_tab(self.tabs.tab("Weight"))
         self._build_temp_tab(self.tabs.tab("Temp"))
+        self._build_blockchain_tab(self.tabs.tab("Blockchain"))
         self._build_translator_tab(self.tabs.tab("Translator"))
         self._build_settings_tab(self.tabs.tab("Settings"))
 
@@ -945,6 +952,314 @@ class CurrencyConverterApp(ctk.CTk):
             text_color="#9CA3AF",
         )
         self.temp_status.pack(pady=(4, 12))
+
+    # ---------------------------------------------------------- blockchain
+    def _build_blockchain_tab(self, parent):
+        """Robinhood Chain price tracker (DexScreener). Default network = RH."""
+        scroll = ctk.CTkScrollableFrame(parent, corner_radius=12)
+        scroll.pack(pady=6, padx=4, fill="both", expand=True)
+        card = scroll
+
+        ctk.CTkLabel(
+            card,
+            text="Blockchain price tracker",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+        ctk.CTkLabel(
+            card,
+            text="Default: Robinhood Chain (4663) · prices via DexScreener · "
+            "passkey wallet planned (see docs/ROBINHOOD_CHAIN_PLAN.md)",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+            wraplength=480,
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        net_row = ctk.CTkFrame(card, fg_color="transparent")
+        net_row.pack(fill="x", padx=12, pady=4)
+        ctk.CTkLabel(
+            net_row, text="Network:", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(side="left")
+        labels = [lab for _, lab in list_network_labels()]
+        self._chain_id_by_label = {lab: nid for nid, lab in list_network_labels()}
+        default_lab = labels[0]  # Robinhood first
+        self.chain_network_menu = ctk.CTkOptionMenu(
+            net_row,
+            values=labels,
+            width=220,
+            command=self._on_chain_network_change,
+        )
+        self.chain_network_menu.set(default_lab)
+        self.chain_network_menu.pack(side="left", padx=8)
+
+        self.chain_meta_label = ctk.CTkLabel(
+            card,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="#6B7280",
+            wraplength=480,
+            justify="left",
+        )
+        self.chain_meta_label.pack(anchor="w", padx=12, pady=(0, 6))
+        self._refresh_chain_meta()
+
+        btn_row = ctk.CTkFrame(card, fg_color="transparent")
+        btn_row.pack(fill="x", padx=12, pady=6)
+        self.chain_refresh_btn = ctk.CTkButton(
+            btn_row,
+            text="Refresh prices",
+            width=130,
+            height=34,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._blockchain_refresh,
+        )
+        self.chain_refresh_btn.pack(side="left")
+        self.chain_test_btn = ctk.CTkButton(
+            btn_row,
+            text="Run self-test",
+            width=120,
+            height=34,
+            fg_color="transparent",
+            border_width=1,
+            border_color="#3B82F6",
+            text_color="#3B82F6",
+            command=self._blockchain_selftest,
+        )
+        self.chain_test_btn.pack(side="left", padx=8)
+
+        self.chain_status = ctk.CTkLabel(
+            card,
+            text="Press Refresh to load RWA + top memecoins.",
+            font=ctk.CTkFont(size=11),
+            text_color="#9CA3AF",
+            wraplength=480,
+            justify="left",
+        )
+        self.chain_status.pack(anchor="w", padx=12, pady=(2, 6))
+
+        ctk.CTkLabel(
+            card,
+            text="RWA / stock tokens (defaults)",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.chain_rwa_box = ctk.CTkTextbox(card, height=130, wrap="none")
+        self.chain_rwa_box.pack(fill="x", padx=12, pady=2)
+        self.chain_rwa_box.insert("0.0", "— not loaded —")
+
+        ctk.CTkLabel(
+            card,
+            text="Top 10 memecoins (DexScreener 24h vol)",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+        self.chain_meme_box = ctk.CTkTextbox(card, height=160, wrap="none")
+        self.chain_meme_box.pack(fill="x", padx=12, pady=2)
+        self.chain_meme_box.insert("0.0", "— not loaded —")
+
+        ctk.CTkLabel(
+            card,
+            text="Track custom contract",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+        add_row = ctk.CTkFrame(card, fg_color="transparent")
+        add_row.pack(fill="x", padx=12, pady=2)
+        self.chain_contract_entry = ctk.CTkEntry(
+            add_row,
+            placeholder_text="0x… ERC-20 on selected chain",
+            height=34,
+        )
+        self.chain_contract_entry.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(
+            add_row, text="Add", width=64, height=34, command=self._blockchain_add_contract
+        ).pack(side="left", padx=(8, 0))
+        self.chain_custom_box = ctk.CTkTextbox(card, height=70, wrap="none")
+        self.chain_custom_box.pack(fill="x", padx=12, pady=2)
+        self.chain_custom_box.insert("0.0", "No custom contracts yet.")
+
+        ctk.CTkLabel(
+            card,
+            text="Self-test log",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+        self.chain_test_log = ctk.CTkTextbox(card, height=100, wrap="word")
+        self.chain_test_log.pack(fill="x", padx=12, pady=(2, 14))
+        self.chain_test_log.insert(
+            "0.0",
+            "CLI: ./venv/bin/python scripts/probe_blockchain.py --show-tables\n",
+        )
+
+    def _refresh_chain_meta(self):
+        try:
+            n = self.price_tracker.network
+            self.chain_meta_label.configure(
+                text=(
+                    f"Chain ID {n.chain_id} · gas {n.native_symbol} · "
+                    f"RPC {n.rpc_public}\nExplorer {n.explorer}\n{n.notes}"
+                )
+            )
+        except Exception as e:
+            self.chain_meta_label.configure(text=f"Network meta error: {e}")
+
+    def _on_chain_network_change(self, label: str):
+        try:
+            nid = self._chain_id_by_label.get(label, "robinhood")
+            self.price_tracker.set_network(nid)
+            self._refresh_chain_meta()
+            self.chain_status.configure(
+                text=f"Network set to {label}. Press Refresh.",
+                text_color="#9CA3AF",
+            )
+        except Exception as e:
+            self.chain_status.configure(text=f"Network change failed: {e}", text_color="#EF4444")
+
+    def _blockchain_set_busy(self, busy: bool):
+        self._blockchain_busy = busy
+        state = "disabled" if busy else "normal"
+        for w in (
+            getattr(self, "chain_refresh_btn", None),
+            getattr(self, "chain_test_btn", None),
+            getattr(self, "chain_network_menu", None),
+        ):
+            if w is not None:
+                try:
+                    w.configure(state=state)
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _format_asset_table(rows: list[TrackedAsset], header: str) -> str:
+        lines = [header]
+        if not rows:
+            lines.append("(empty)")
+            return "\n".join(lines)
+        for a in rows:
+            if a.error:
+                lines.append(f"{a.symbol:10}  ERROR  {a.error[:60]}")
+                if a.address:
+                    lines.append(f"{'':10}  contract {a.address}")
+                continue
+            lines.append(
+                f"{a.symbol:10} {a.format_price():>12}  {a.format_change():>8}  "
+                f"vol24={a.volume_h24:,.0f}"
+            )
+            lines.append(
+                f"{'':10}  {a.short_contract()}  {a.dex_id}  {a.address}"
+            )
+        return "\n".join(lines)
+
+    def _blockchain_refresh(self):
+        if self._blockchain_busy:
+            return
+
+        def work():
+            try:
+                data = self.price_tracker.fetch_all(meme_limit=10)
+                rwa_txt = self._format_asset_table(
+                    data.get("rwa") or [],
+                    "SYM             PRICE     24h%   (contract on next line)",
+                )
+                meme_txt = self._format_asset_table(
+                    data.get("meme") or [],
+                    "SYM             PRICE     24h%   (contract on next line)",
+                )
+                custom_txt = self._format_asset_table(
+                    data.get("custom") or [],
+                    "Custom tracked contracts:",
+                )
+                rwa_ok = sum(1 for a in (data.get("rwa") or []) if not a.error and a.price_usd)
+                meme_ok = sum(1 for a in (data.get("meme") or []) if not a.error and a.address)
+                msg = (
+                    f"Loaded {rwa_ok} RWA priced · {meme_ok} memecoins · "
+                    f"network {self.price_tracker.network.name}"
+                )
+                color = "#10B981" if rwa_ok >= 3 else "#F59E0B"
+
+                def apply():
+                    try:
+                        self.chain_rwa_box.delete("0.0", "end")
+                        self.chain_rwa_box.insert("0.0", rwa_txt)
+                        self.chain_meme_box.delete("0.0", "end")
+                        self.chain_meme_box.insert("0.0", meme_txt)
+                        self.chain_custom_box.delete("0.0", "end")
+                        self.chain_custom_box.insert(
+                            "0.0",
+                            custom_txt
+                            if (data.get("custom") or [])
+                            else "No custom contracts yet.",
+                        )
+                        self.chain_status.configure(text=msg, text_color=color)
+                    except Exception as e:
+                        self.chain_status.configure(
+                            text=f"UI update failed: {e}", text_color="#EF4444"
+                        )
+                    finally:
+                        self._blockchain_set_busy(False)
+
+                self.after(0, apply)
+            except Exception as e:
+                err = f"Refresh failed: {type(e).__name__}: {e}"
+
+                def fail():
+                    self.chain_status.configure(text=err, text_color="#EF4444")
+                    self._blockchain_set_busy(False)
+
+                self.after(0, fail)
+
+        self._blockchain_set_busy(True)
+        self.chain_status.configure(text="Fetching DexScreener…", text_color="#9CA3AF")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _blockchain_add_contract(self):
+        raw = self.chain_contract_entry.get().strip()
+        try:
+            addr = self.price_tracker.add_custom_contract(raw)
+            self.chain_contract_entry.delete(0, "end")
+            self.chain_status.configure(
+                text=f"Added {addr}. Press Refresh.", text_color="#10B981"
+            )
+            self._blockchain_refresh()
+        except Exception as e:
+            self.chain_status.configure(text=str(e), text_color="#EF4444")
+
+    def _blockchain_selftest(self):
+        if self._blockchain_busy:
+            return
+
+        def work():
+            try:
+                results = run_selftests(live_network=True)
+                _, failed, text = summarize_selftests(results)
+                color = "#10B981" if failed == 0 else "#EF4444"
+
+                def apply():
+                    try:
+                        self.chain_test_log.delete("0.0", "end")
+                        self.chain_test_log.insert("0.0", text)
+                        self.chain_status.configure(
+                            text=(
+                                "Self-test passed."
+                                if failed == 0
+                                else f"Self-test: {failed} failure(s) — see log."
+                            ),
+                            text_color=color,
+                        )
+                    finally:
+                        self._blockchain_set_busy(False)
+
+                self.after(0, apply)
+            except Exception as e:
+                def fail():
+                    self.chain_test_log.delete("0.0", "end")
+                    self.chain_test_log.insert("0.0", f"Self-test crashed: {e}")
+                    self.chain_status.configure(
+                        text=f"Self-test crashed: {e}", text_color="#EF4444"
+                    )
+                    self._blockchain_set_busy(False)
+
+                self.after(0, fail)
+
+        self._blockchain_set_busy(True)
+        self.chain_status.configure(text="Running self-tests…", text_color="#9CA3AF")
+        threading.Thread(target=work, daemon=True).start()
 
     # ------------------------------------------------------------ translator
     def _build_translator_tab(self, parent):

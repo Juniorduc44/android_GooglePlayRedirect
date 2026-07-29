@@ -11,8 +11,8 @@ android {
         applicationId = "com.juniorduc44.phpusdconverter"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10501
-        versionName = "1.5.1"
+        versionCode = 10600
+        versionName = "1.6.0"
     }
 
     // Optional release signing via env vars (keystore not in git):

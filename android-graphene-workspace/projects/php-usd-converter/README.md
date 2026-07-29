@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.5.1** (Temp + partial Translator) |
-| Android APK | **v1.5.1** convert/travel/weight/temp (`versionCode` 10501) |
+| Desktop toolkit | **v1.6.0** (Blockchain / Robinhood Chain tracker) |
+| Android APK | **v1.6.0** convert/travel/weight/temp (`versionCode` 10600) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,9 +18,18 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.5.1`
+Current version file: [`VERSION`](./VERSION) → `1.6.0`
 
 ### Changelog
+
+#### v1.6.0
+
+- **Blockchain tab:** Robinhood Chain (4663) default price tracker via DexScreener
+- ≥5 RWA/stock tokens (NVDA, TSLA, AAPL, GOOGL, MSFT) with contracts + prices
+- Top 10 memecoins by 24h volume; custom contract track; self-test + CLI probe
+- Plan: `docs/ROBINHOOD_CHAIN_PLAN.md` (passkey wallet Phase C — not shipped)
+- Local tool: `tools/browser-harness` clone docs in repo `tools/README.md`
+- **Translator:** still unfinished / not reliable
 
 #### v1.5.1
 
