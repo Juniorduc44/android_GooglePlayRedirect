@@ -5,8 +5,8 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 | Build | Value |
 |---|---|
-| Desktop toolkit | **v1.7.0** (Wallet + faster Chain) |
-| Android APK | **v1.7.0** Wallet section (`versionCode` 10700) |
+| Desktop toolkit | **v1.8.1** (Spec · Dex import + locks) |
+| Android APK | **v1.8.1** Spec + Dex locks (`versionCode` 10801) |
 | Package ID | `com.juniorduc44.phpusdconverter` |
 | Min / target SDK | 26 / 34 |
 | APK naming | `php-usd-converter-vMAJOR.MINOR.PATCH.apk` only |
@@ -18,9 +18,30 @@ exchange rate, with an offline fallback and a **swap** control for direction.
 
 **App-specific notes:** [`VERSIONING.md`](./VERSIONING.md)
 
-Current version file: [`VERSION`](./VERSION) → `1.6.3`
+Current version file: [`VERSION`](./VERSION) → `1.8.1`
 
 ### Changelog
+
+#### v1.8.1
+
+- **Spec · From DexScreener**: load trending/volume/meme/RWA tokens
+- **Field locks**: keep supply (or mcap/price) from live data; uncheck to type what-if values
+- Estimated supply from mcap÷price when Dex omits raw supply
+- Updated plan: [`docs/SPEC_PLAN.md`](./docs/SPEC_PLAN.md)
+
+#### v1.8.0
+
+- **Spec** section: buy / sell / speculate calculators (mcap→price, spend→items, holdings×target)
+- Shortcuts: `1.5b` / `50m` / `250k`; copy price & items between panels
+- Plan: [`docs/SPEC_PLAN.md`](./docs/SPEC_PLAN.md)
+- **Removed Wallet** (no keystore / private keys); Chain remains markets viewer only
+- Plan for faster load + cleaner UI: [`docs/UI_PERF_PLAN.md`](./docs/UI_PERF_PLAN.md)
+
+#### v1.7.0
+
+- **Wallet** section (later removed): local EOA on Robinhood Chain (4663)
+- Password-encrypted keystore; balance via public RH RPC; copy address
+- **Faster Blockchain**: fewer DexScreener seeds, 90s cache, auto-load only once
 
 #### v1.6.3
 

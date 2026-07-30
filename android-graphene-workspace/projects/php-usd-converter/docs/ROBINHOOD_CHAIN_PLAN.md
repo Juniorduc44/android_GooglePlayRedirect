@@ -1,6 +1,7 @@
 # Plan: Robinhood Chain access, price tracker & passkey wallet
 
-**Status:** research + Phase 1 shipped (price tracker tab). Passkey wallet is **not** implemented yet.  
+**Status:** Phase 1 (price tracker) is the product. **Wallet / passkey work cancelled** — app is a Chain **viewer** only.  
+**UI + speed next steps:** `docs/UI_PERF_PLAN.md`  
 **Date:** 2026-07-29  
 **Sources:** `docs/Robinhood.pdf` (Crypto Trading API), [docs.robinhood.com/chain](https://docs.robinhood.com/chain/), [hood.dev](https://hood.dev/), [DexScreener API](https://docs.dexscreener.com/api/reference), local `tools/browser-harness`.
 
@@ -37,22 +38,28 @@ The PDF is the **Robinhood Crypto Trading API** (US-only account trading: orders
 
 Stock Tokens are tokenized RWA equities on-chain (economic exposure; legal caveats per Robinhood disclosures).
 
-### 1.3 hood.dev /launch (passkey / wallet research)
+### 1.3 hood.dev /launch (passkey / wallet research) — **completed 2026-07-29**
 
 Observed public product:
 
 - **hood.dev** is a **token launchpad** on Robinhood Chain (“Launch, trade, and scale tokens”).
 - **/launch** creates an ERC-20 + Uniswap/Sushi V3 pool with LP locked, anti-sniper caps, deploy cost ~0.001 ETH.
-- UI requires **Connect a wallet** to generate/deploy contract addresses (vanity ending optional).
-- This is **not** the same surface as “one-click passkey → smart wallet for anyone globally,” but it is the fastest public path to **use** the chain for token ops.
+- Wallet UX is **Connect** with **Turnkey-backed passkey/session** (not open source).
 
-**Passkey / AA direction (to clone later):**
+**Verified stack (production JS reverse-engineering):**
 
-1. **Robinhood Chain ERC-4337** + Alchemy Gasless Transaction Infrastructure (official).
-2. **WebAuthn passkey** as owner key of a smart account (e.g. P256 / WebAuthn validators used by many AA wallets) — research specific contracts on RH chain via browser-harness on hood.dev login flows and Alchemy AA docs.
-3. **browser-harness** (local tool, not in-app) to reverse-engineer hood.dev wallet connection UX, network add (4663), and any embedded passkey prompts without guessing from static HTML alone.
+- `https://api.turnkey.com`, `https://authproxy.turnkey.com`
+- `@turnkey/core@2.2.0`, PasskeyStamper, `createSubOrganization`, `createWallet`
+- WalletConnect + React wallet kit hooks (`useTurnkeyWallets`)
 
-**Legal / product caution:** Do not claim “official Robinhood login” or clone trademarks. Build **compatible** EVM + AA wallet UX for RH chain; passkey is **user self-custody**, not RH brokerage auth.
+**Full write-up + architecture options (Turnkey / w3pk-PRF / ERC-4337 P-256):**
+
+→ `tools/passkey-research/PASSKEY_WALLET_RESEARCH.md`  
+→ Clones: `tools/passkey-research/{turnkey-demo-passkey-wallet,demo-embedded-wallet,passkeys-4337-smart-wallet,daimo-p256-verifier,base-webauthn-sol,w3pk,portkey-client}`
+
+**Status:** Research complete. Password EOA Wallet tab is **not** the passkey product. Implementation blocked on path choice + (for hood-identical UX) Turnkey org credentials. See research §6–§8.
+
+**Legal / product caution:** Do not claim “official Robinhood login” or clone trademarks. Build **compatible** EVM + passkey UX for RH chain; passkey is **user self-custody**, not RH brokerage auth.
 
 ### 1.4 DexScreener (live, verified 2026-07-29)
 

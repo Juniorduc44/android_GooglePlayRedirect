@@ -49,6 +49,9 @@ object RobinhoodChainTracker {
         val changeH24: Double? = null,
         val volumeH24: Double = 0.0,
         val liquidityUsd: Double = 0.0,
+        val marketCap: Double? = null,
+        val fdv: Double? = null,
+        val estimatedSupply: Double? = null,
         val pairAddress: String = "",
         val dexId: String = "",
         val url: String = "",
@@ -422,6 +425,13 @@ object RobinhoodChainTracker {
             val ch = if (chg != null && chg.has("h24") && !chg.isNull("h24")) {
                 chg.optDouble("h24").takeIf { !it.isNaN() }
             } else null
+            val mcap = if (p.has("marketCap") && !p.isNull("marketCap")) {
+                p.optDouble("marketCap").takeIf { !it.isNaN() && it > 0 }
+            } else null
+            val fdv = if (p.has("fdv") && !p.isNull("fdv")) {
+                p.optDouble("fdv").takeIf { !it.isNaN() && it > 0 }
+            } else null
+            val supply = estimateSupply(price, mcap, fdv)
             out.add(
                 AssetQuote(
                     symbol = bt.optString("symbol", "?"),
@@ -432,6 +442,9 @@ object RobinhoodChainTracker {
                     changeH24 = ch,
                     volumeH24 = vol?.optDouble("h24")?.takeIf { !it.isNaN() } ?: 0.0,
                     liquidityUsd = liq?.optDouble("usd")?.takeIf { !it.isNaN() } ?: 0.0,
+                    marketCap = mcap,
+                    fdv = fdv,
+                    estimatedSupply = supply,
                     pairAddress = p.optString("pairAddress", ""),
                     dexId = p.optString("dexId", ""),
                     url = p.optString("url", ""),
@@ -450,5 +463,16 @@ object RobinhoodChainTracker {
             if (prev == null || p.liquidityUsd > prev.liquidityUsd) best[key] = p
         }
         return best
+    }
+
+    /** Circulating-ish supply ≈ mcap÷price (or fdv÷price) when Dex omits raw supply. */
+    fun estimateSupply(price: Double?, marketCap: Double?, fdv: Double?): Double? {
+        if (price == null || price <= 0) return null
+        val cap = when {
+            marketCap != null && marketCap > 0 -> marketCap
+            fdv != null && fdv > 0 -> fdv
+            else -> return null
+        }
+        return cap / price
     }
 }

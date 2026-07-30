@@ -47,6 +47,9 @@ class TrackedAsset:
     change_h24: float | None = None
     volume_h24: float = 0.0
     liquidity_usd: float = 0.0
+    market_cap: float | None = None
+    fdv: float | None = None
+    estimated_supply: float | None = None
     pair_address: str = ""
     dex_id: str = ""
     url: str = ""
@@ -89,12 +92,26 @@ class TrackedAsset:
             "change_h24": self.change_h24,
             "volume_h24": self.volume_h24,
             "liquidity_usd": self.liquidity_usd,
+            "market_cap": self.market_cap,
+            "fdv": self.fdv,
+            "estimated_supply": self.estimated_supply,
             "pair_address": self.pair_address,
             "dex_id": self.dex_id,
             "url": self.url,
             "error": self.error,
             "note": self.note,
         }
+
+
+def _estimate_supply(
+    price: float | None, market_cap: float | None, fdv: float | None
+) -> float | None:
+    if price is None or price <= 0:
+        return None
+    for cap in (market_cap, fdv):
+        if cap is not None and cap > 0:
+            return cap / price
+    return None
 
 
 def _from_pair(p: PairQuote, category: str, note: str = "") -> TrackedAsset:
@@ -107,6 +124,9 @@ def _from_pair(p: PairQuote, category: str, note: str = "") -> TrackedAsset:
         change_h24=p.price_change_h24,
         volume_h24=p.volume_h24,
         liquidity_usd=p.liquidity_usd,
+        market_cap=p.market_cap,
+        fdv=p.fdv,
+        estimated_supply=_estimate_supply(p.price_usd, p.market_cap, p.fdv),
         pair_address=p.pair_address,
         dex_id=p.dex_id,
         url=p.url,

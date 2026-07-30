@@ -2,7 +2,6 @@ customtkinter>=5.2.0
 requests>=2.31.0
 deep-translator>=1.11.4
 eng-to-ipa>=0.0.2
-eth-account>=0.11.0
 # Local Hugging Face models (Opus-MT / T5) — loaded from Hub on first use
 transformers>=4.40
 sentencepiece>=0.2.0

@@ -1,7 +1,5 @@
 package com.juniorduc44.phpusdconverter
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
@@ -31,7 +29,6 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var walletStore: LocalWalletStore
     /** USD per 1 PHP */
     private var phpToUsdRate: Double = FALLBACK_RATE
     private var rateIsLive: Boolean = false
@@ -48,6 +45,13 @@ class MainActivity : AppCompatActivity() {
     private var chainCategoryId: String = RobinhoodChainTracker.DEFAULT_CATEGORY
     private var chainSpinnerReady: Boolean = false
     private var chainLoadedOnce: Boolean = false
+    private var specTokenRows: List<RobinhoodChainTracker.AssetQuote> = emptyList()
+    private var specLiveSupply: Double? = null
+    private var specLiveMcap: Double? = null
+    private var specLivePrice: Double? = null
+    private var specLiveSymbol: String = ""
+    private var specTokenSpinnerReady: Boolean = false
+    private var specSuppressWatcher: Boolean = false
     /** ViewFlipper index of the active tool section */
     private var currentSection: Int = SECTION_CONVERT
 
@@ -55,7 +59,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        walletStore = LocalWalletStore(this)
 
         binding.versionLabel.text = "v${BuildConfig.VERSION_NAME}"
         binding.rateInfoLabel.text = getString(R.string.fetching_rate)
@@ -65,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         applyWeightUnitLabels()
         applyTempUnitLabels()
         setupChainTab()
-        setupWalletTab()
+        setupSpecTab()
 
         // Sandwich menu (top-right) — all tools + Settings live here (no top tab strip)
         binding.menuButton.setOnClickListener { showNavMenu() }
@@ -131,8 +134,8 @@ class MainActivity : AppCompatActivity() {
         popup.menu.add(0, SECTION_TRAVEL, 1, R.string.section_travel)
         popup.menu.add(0, SECTION_WEIGHT, 2, R.string.section_weight)
         popup.menu.add(0, SECTION_TEMP, 3, R.string.section_temp)
-        popup.menu.add(0, SECTION_CHAIN, 4, R.string.section_chain)
-        popup.menu.add(0, SECTION_WALLET, 5, R.string.section_wallet)
+        popup.menu.add(0, SECTION_SPEC, 4, R.string.section_spec)
+        popup.menu.add(0, SECTION_CHAIN, 5, R.string.section_chain)
         popup.menu.add(0, SECTION_SETTINGS, 6, R.string.section_settings)
         // Mark current
         popup.menu.findItem(currentSection)?.isChecked = true
@@ -169,16 +172,16 @@ class MainActivity : AppCompatActivity() {
                 binding.subtitleLabel.setText(R.string.temp_hint_c)
                 calculateTemp()
             }
+            SECTION_SPEC -> {
+                binding.titleLabel.setText(R.string.section_spec)
+                binding.subtitleLabel.setText(R.string.spec_subtitle)
+                calculateSpecAll()
+            }
             SECTION_CHAIN -> {
                 binding.titleLabel.setText(R.string.section_chain)
                 binding.subtitleLabel.text = "Robinhood · ${RobinhoodChainTracker.CHAIN_ID}"
                 // Only auto-fetch markets once (DexScreener can be slow)
                 if (!chainLoadedOnce) refreshBlockchain()
-            }
-            SECTION_WALLET -> {
-                binding.titleLabel.setText(R.string.section_wallet)
-                binding.subtitleLabel.text = "Self-custody · chain 4663"
-                refreshWalletUi()
             }
             SECTION_SETTINGS -> {
                 binding.titleLabel.setText(R.string.section_settings)
@@ -187,126 +190,368 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupWalletTab() {
-        binding.walletCreateButton.setOnClickListener { walletCreate() }
-        binding.walletUnlockButton.setOnClickListener { walletUnlock() }
-        binding.walletLockButton.setOnClickListener {
-            walletStore.lock()
-            refreshWalletUi()
-            binding.walletMessage.setText(R.string.wallet_locked)
-            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
-        }
-        binding.walletRefreshBalanceButton.setOnClickListener { walletRefreshBalance() }
-        binding.walletCopyButton.setOnClickListener { walletCopyAddress() }
-        refreshWalletUi()
-    }
 
-    private fun refreshWalletUi() {
-        try {
-            if (!walletStore.hasWallet) {
-                binding.walletStatus.setText(R.string.wallet_status_none)
-                binding.walletAddress.setText(R.string.wallet_address_none)
-                binding.walletBalance.setText(R.string.wallet_balance_none)
-                return
+    // --- Spec (item / token perspectives) ---
+
+    private fun setupSpecTab() {
+        val watcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (!specSuppressWatcher) calculateSpecAll()
             }
-            binding.walletStatus.setText(
-                if (walletStore.isUnlocked) R.string.wallet_status_unlocked
-                else R.string.wallet_status_locked
-            )
-            binding.walletAddress.text = "Address: ${walletStore.address}"
-        } catch (e: Exception) {
-            binding.walletMessage.text = e.message
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
         }
+        binding.specMcap.addTextChangedListener(watcher)
+        binding.specSupply.addTextChangedListener(watcher)
+        binding.specPrice.addTextChangedListener(watcher)
+        binding.specSpent.addTextChangedListener(watcher)
+        binding.specHoldings.addTextChangedListener(watcher)
+        binding.specTarget.addTextChangedListener(watcher)
+        binding.specCostBasis.addTextChangedListener(watcher)
+        binding.specCopyPriceButton.setOnClickListener { specCopyPriceAtoB() }
+        binding.specCopyItemsButton.setOnClickListener { specCopyItemsBtoC() }
+
+        val srcLabels = RobinhoodChainTracker.categoryLabels()
+            .filter { it != "My contracts" }
+            .toTypedArray()
+        binding.specSourceSpinner.adapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, srcLabels)
+        // default trending boosts if present
+        val boostIdx = srcLabels.indexOfFirst { it.contains("boost", ignoreCase = true) }
+        if (boostIdx >= 0) binding.specSourceSpinner.setSelection(boostIdx)
+
+        binding.specTokenSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            listOf(getString(R.string.spec_mkt_live_idle).replace("Live: ", "")),
+        )
+        binding.specTokenSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: android.view.View?,
+                    position: Int,
+                    id: Long,
+                ) {
+                    if (!specTokenSpinnerReady) return
+                    onSpecTokenSelected(position)
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+
+        binding.specLoadButton.setOnClickListener { loadSpecMarket() }
+        binding.specApplyLockedButton.setOnClickListener { applySpecLocked(onlyLocked = false) }
+        binding.specClearLocksButton.setOnClickListener { clearSpecLocks() }
+        binding.specLockSupply.setOnCheckedChangeListener { _, _ ->
+            applySpecEntryStates()
+            applySpecLocked(onlyLocked = true)
+        }
+        binding.specLockMcap.setOnCheckedChangeListener { _, _ ->
+            applySpecEntryStates()
+            applySpecLocked(onlyLocked = true)
+        }
+        binding.specLockPrice.setOnCheckedChangeListener { _, _ ->
+            applySpecEntryStates()
+            applySpecLocked(onlyLocked = true)
+        }
+        applySpecEntryStates()
     }
 
-    private fun walletCreate() {
-        val pw = binding.walletPassword.text?.toString().orEmpty()
-        if (pw.length < 6) {
-            binding.walletMessage.setText(R.string.wallet_need_password)
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-            return
-        }
-        try {
-            val addr = walletStore.create(pw)
-            binding.walletPassword.setText("")
-            refreshWalletUi()
-            binding.walletMessage.text = getString(R.string.wallet_created) + "\n$addr"
-            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
-            walletRefreshBalance()
-        } catch (e: Exception) {
-            binding.walletMessage.text = e.message
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-        }
-    }
-
-    private fun walletUnlock() {
-        val pw = binding.walletPassword.text?.toString().orEmpty()
-        try {
-            walletStore.unlock(pw)
-            binding.walletPassword.setText("")
-            refreshWalletUi()
-            binding.walletMessage.setText(R.string.wallet_unlocked)
-            binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
-            walletRefreshBalance()
-        } catch (e: Exception) {
-            binding.walletMessage.setText(R.string.wallet_bad_password)
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-        }
-    }
-
-    private fun walletCopyAddress() {
-        val addr = walletStore.address
-        if (addr.isNullOrBlank()) {
-            binding.walletMessage.setText(R.string.wallet_status_none)
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-            return
-        }
-        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("wallet", addr))
-        binding.walletMessage.setText(R.string.wallet_copied)
-        binding.walletMessage.setTextColor(Color.parseColor("#10B981"))
-        Toast.makeText(this, R.string.wallet_copied, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun walletRefreshBalance() {
-        val addr = walletStore.address
-        if (addr.isNullOrBlank()) {
-            binding.walletMessage.setText(R.string.wallet_status_none)
-            binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-            return
-        }
-        binding.walletMessage.text = "Querying Robinhood RPC…"
-        binding.walletMessage.setTextColor(Color.parseColor("#9CA3AF"))
+    private fun loadSpecMarket() {
+        val label = binding.specSourceSpinner.selectedItem?.toString()
+            ?: return
+        val cat = RobinhoodChainTracker.categoryIdForLabel(label)
+        binding.specLoadButton.isEnabled = false
+        binding.specMktStatus.text = "Loading DexScreener…"
+        binding.specMktStatus.setTextColor(Color.parseColor("#9CA3AF"))
         lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val rows = withContext(Dispatchers.IO) {
                 try {
-                    val cid = ChainRpc.ethChainId()
-                    val bal = ChainRpc.ethGetBalanceEth(addr)
-                    Result.success(cid to bal)
+                    RobinhoodChainTracker.fetchCategory(cat, limit = 15)
+                        .filter { it.error == null && (it.priceUsd != null || it.address.isNotEmpty()) }
                 } catch (e: Exception) {
-                    Result.failure(e)
+                    emptyList()
                 }
             }
-            result.fold(
-                onSuccess = { (cid, bal) ->
-                    binding.walletBalance.text = "ETH balance: $bal ETH"
-                    binding.walletNetwork.text =
-                        "Network: Robinhood · chain $cid (expect ${ChainRpc.CHAIN_ID})"
-                    binding.walletMessage.text =
-                        if (cid == ChainRpc.CHAIN_ID) "RPC OK"
-                        else "WARNING: chainId $cid ≠ ${ChainRpc.CHAIN_ID}"
-                    binding.walletMessage.setTextColor(
-                        Color.parseColor(if (cid == ChainRpc.CHAIN_ID) "#10B981" else "#F59E0B")
-                    )
-                },
-                onFailure = { e ->
-                    binding.walletBalance.text = "ETH balance: (RPC error)"
-                    binding.walletMessage.text = "RPC: ${e.message}"
-                    binding.walletMessage.setTextColor(Color.parseColor("#EF4444"))
-                },
+            binding.specLoadButton.isEnabled = true
+            if (rows.isEmpty()) {
+                binding.specMktStatus.text = "No priced tokens — try another source."
+                binding.specMktStatus.setTextColor(Color.parseColor("#F59E0B"))
+                return@launch
+            }
+            specTokenRows = rows
+            val labels = rows.map { specTokenLabel(it) }
+            specTokenSpinnerReady = false
+            binding.specTokenSpinner.adapter =
+                ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, labels)
+            binding.specTokenSpinner.setSelection(0)
+            specTokenSpinnerReady = true
+            onSpecTokenSelected(0)
+            binding.specMktStatus.text = "Loaded ${rows.size} · pick token · toggle locks · Apply"
+            binding.specMktStatus.setTextColor(Color.parseColor("#10B981"))
+        }
+    }
+
+    private fun specTokenLabel(a: RobinhoodChainTracker.AssetQuote): String {
+        val px = a.priceUsd?.let { SpeculatorMath.formatMoney(it) } ?: "n/a"
+        val sup = a.estimatedSupply
+            ?: RobinhoodChainTracker.estimateSupply(a.priceUsd, a.marketCap, a.fdv)
+        val supS = sup?.let { SpeculatorMath.formatQty(it) } ?: "?"
+        return "${a.symbol}  ·  $px  ·  sup~$supS"
+    }
+
+    private fun onSpecTokenSelected(position: Int) {
+        val asset = specTokenRows.getOrNull(position) ?: return
+        val price = asset.priceUsd
+        val mcap = asset.marketCap ?: asset.fdv
+        val supply = asset.estimatedSupply
+            ?: RobinhoodChainTracker.estimateSupply(price, asset.marketCap, asset.fdv)
+        specLiveSymbol = asset.symbol
+        specLivePrice = price
+        specLiveMcap = mcap
+        specLiveSupply = supply
+        val bits = mutableListOf(asset.symbol)
+        if (price != null) bits.add("price ${SpeculatorMath.formatMoney(price)}")
+        if (mcap != null) bits.add("mcap ${SpeculatorMath.formatMoney(mcap)}")
+        if (supply != null) bits.add("supply ~${SpeculatorMath.formatQty(supply)}")
+        if (asset.address.isNotEmpty()) bits.add(asset.address.take(10) + "…")
+        binding.specLiveLabel.text = "Live: " + bits.joinToString(" · ")
+        applySpecLocked(onlyLocked = false)
+    }
+
+    private fun applySpecEntryStates() {
+        binding.specSupply.isEnabled = !binding.specLockSupply.isChecked
+        binding.specMcap.isEnabled = !binding.specLockMcap.isChecked
+        binding.specPrice.isEnabled = !binding.specLockPrice.isChecked
+    }
+
+    private fun setSpecEntry(edit: android.widget.EditText, value: Double?) {
+        specSuppressWatcher = true
+        if (value == null) {
+            // leave as-is
+        } else {
+            edit.setText(SpeculatorMath.formatRaw(value))
+        }
+        specSuppressWatcher = false
+    }
+
+    private fun applySpecLocked(onlyLocked: Boolean) {
+        if (specLiveSymbol.isEmpty() &&
+            specLiveSupply == null && specLiveMcap == null && specLivePrice == null
+        ) {
+            if (!onlyLocked) {
+                binding.specMktStatus.text = "Select a loaded token first."
+                binding.specMktStatus.setTextColor(Color.parseColor("#F59E0B"))
+            }
+            applySpecEntryStates()
+            return
+        }
+        // write while enabled
+        binding.specSupply.isEnabled = true
+        binding.specMcap.isEnabled = true
+        binding.specPrice.isEnabled = true
+
+        if (binding.specLockSupply.isChecked && specLiveSupply != null) {
+            setSpecEntry(binding.specSupply, specLiveSupply)
+        } else if (!onlyLocked && binding.specSupply.text.isNullOrBlank() && specLiveSupply != null) {
+            setSpecEntry(binding.specSupply, specLiveSupply)
+        }
+
+        if (binding.specLockMcap.isChecked && specLiveMcap != null) {
+            setSpecEntry(binding.specMcap, specLiveMcap)
+        } else if (!onlyLocked && !binding.specLockMcap.isChecked &&
+            binding.specMcap.text.isNullOrBlank() && specLiveMcap != null
+        ) {
+            setSpecEntry(binding.specMcap, specLiveMcap)
+        }
+
+        if (binding.specLockPrice.isChecked && specLivePrice != null) {
+            setSpecEntry(binding.specPrice, specLivePrice)
+        } else if (!onlyLocked && !binding.specLockPrice.isChecked &&
+            binding.specPrice.text.isNullOrBlank() && specLivePrice != null
+        ) {
+            setSpecEntry(binding.specPrice, specLivePrice)
+        }
+
+        applySpecEntryStates()
+        val locked = buildList {
+            if (binding.specLockSupply.isChecked) add("supply")
+            if (binding.specLockMcap.isChecked) add("mcap")
+            if (binding.specLockPrice.isChecked) add("price")
+        }
+        val free = buildList {
+            if (!binding.specLockSupply.isChecked) add("supply")
+            if (!binding.specLockMcap.isChecked) add("mcap")
+            if (!binding.specLockPrice.isChecked) add("price")
+        }
+        val sym = specLiveSymbol.ifEmpty { "token" }
+        binding.specMktStatus.text =
+            "$sym: locked [${locked.joinToString(", ").ifEmpty { "none" }}] · edit [${free.joinToString(", ").ifEmpty { "none" }}]"
+        binding.specMktStatus.setTextColor(Color.parseColor("#10B981"))
+        calculateSpecAll()
+    }
+
+    private fun clearSpecLocks() {
+        binding.specLockSupply.isChecked = false
+        binding.specLockMcap.isChecked = false
+        binding.specLockPrice.isChecked = false
+        applySpecEntryStates()
+        binding.specMktStatus.text = "All fields unlocked — type freely."
+        binding.specMktStatus.setTextColor(Color.parseColor("#9CA3AF"))
+    }
+
+    private fun specCopyPriceAtoB() {
+        val mcap = SpeculatorMath.parseNumber(binding.specMcap.text?.toString())
+        val supply = SpeculatorMath.parseNumber(binding.specSupply.text?.toString())
+        if (mcap == null || supply == null || supply == 0.0) {
+            binding.specAStatus.text = "Need valid market cap and non-zero supply first."
+            binding.specAStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val px = SpeculatorMath.priceFromMcap(mcap, supply)
+        binding.specPrice.setText(SpeculatorMath.formatRaw(px))
+        calculateSpecAll()
+    }
+
+    private fun specCopyItemsBtoC() {
+        val price = SpeculatorMath.parseNumber(binding.specPrice.text?.toString())
+        val spent = SpeculatorMath.parseNumber(binding.specSpent.text?.toString())
+        if (price == null || spent == null || price == 0.0) {
+            binding.specBStatus.text = "Need valid price and spend first."
+            binding.specBStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val items = SpeculatorMath.itemsFromSpend(spent, price)
+        binding.specHoldings.setText(SpeculatorMath.formatRaw(items))
+        if (binding.specCostBasis.text.isNullOrBlank()) {
+            binding.specCostBasis.setText(SpeculatorMath.formatRaw(spent))
+        }
+        calculateSpecAll()
+    }
+
+    private fun calculateSpecAll() {
+        calculateSpecA()
+        calculateSpecB()
+        calculateSpecC()
+    }
+
+    private fun calculateSpecA() {
+        val mcap = SpeculatorMath.parseNumber(binding.specMcap.text?.toString())
+        val supply = SpeculatorMath.parseNumber(binding.specSupply.text?.toString())
+        if (mcap == null && supply == null) {
+            binding.specAResult.text = "—"
+            binding.specASecondary.text = ""
+            binding.specAStatus.setText(R.string.spec_a_status)
+            binding.specAStatus.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+        if (mcap == null || supply == null) {
+            binding.specAResult.text = "—"
+            binding.specASecondary.text = ""
+            binding.specAStatus.text = "Fill both market cap and supply."
+            binding.specAStatus.setTextColor(Color.parseColor("#F59E0B"))
+            return
+        }
+        if (supply == 0.0) {
+            binding.specAResult.text = "—"
+            binding.specASecondary.text = ""
+            binding.specAStatus.text = "Supply cannot be zero."
+            binding.specAStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        if (mcap < 0 || supply < 0) {
+            binding.specAStatus.text = "Use non-negative numbers."
+            binding.specAStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val px = SpeculatorMath.priceFromMcap(mcap, supply)
+        val rev = SpeculatorMath.mcapFromPrice(px, supply)
+        binding.specAResult.text = SpeculatorMath.formatMoney(px) + " / item"
+        binding.specASecondary.text =
+            "Check: ${SpeculatorMath.formatMoney(px)} × ${SpeculatorMath.formatQty(supply)} ≈ ${SpeculatorMath.formatMoney(rev)} mcap"
+        binding.specAStatus.text =
+            "At mcap ${SpeculatorMath.formatMoney(mcap)} with supply ${SpeculatorMath.formatQty(supply)}"
+        binding.specAStatus.setTextColor(Color.parseColor("#9CA3AF"))
+    }
+
+    private fun calculateSpecB() {
+        val price = SpeculatorMath.parseNumber(binding.specPrice.text?.toString())
+        val spent = SpeculatorMath.parseNumber(binding.specSpent.text?.toString())
+        if (price == null && spent == null) {
+            binding.specBResult.text = "—"
+            binding.specBSecondary.text = ""
+            binding.specBStatus.setText(R.string.spec_b_status)
+            binding.specBStatus.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+        if (price == null || spent == null) {
+            binding.specBResult.text = "—"
+            binding.specBSecondary.text = ""
+            binding.specBStatus.text = "Fill both price and amount spent."
+            binding.specBStatus.setTextColor(Color.parseColor("#F59E0B"))
+            return
+        }
+        if (price == 0.0) {
+            binding.specBResult.text = "—"
+            binding.specBSecondary.text = ""
+            binding.specBStatus.text = "Price cannot be zero."
+            binding.specBStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        if (price < 0 || spent < 0) {
+            binding.specBStatus.text = "Use non-negative numbers."
+            binding.specBStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val items = SpeculatorMath.itemsFromSpend(spent, price)
+        val cost = SpeculatorMath.costForItems(price, items)
+        binding.specBResult.text = SpeculatorMath.formatQty(items) + " items"
+        binding.specBSecondary.text =
+            "Check: ${SpeculatorMath.formatQty(items)} × ${SpeculatorMath.formatMoney(price)} ≈ ${SpeculatorMath.formatMoney(cost)}"
+        binding.specBStatus.text =
+            "Spending ${SpeculatorMath.formatMoney(spent)} at ${SpeculatorMath.formatMoney(price)} each"
+        binding.specBStatus.setTextColor(Color.parseColor("#9CA3AF"))
+    }
+
+    private fun calculateSpecC() {
+        val holdings = SpeculatorMath.parseNumber(binding.specHoldings.text?.toString())
+        val target = SpeculatorMath.parseNumber(binding.specTarget.text?.toString())
+        val basis = SpeculatorMath.parseNumber(binding.specCostBasis.text?.toString())
+        if (holdings == null && target == null) {
+            binding.specCResult.text = "—"
+            binding.specCSecondary.text = ""
+            binding.specCStatus.setText(R.string.spec_c_status)
+            binding.specCStatus.setTextColor(Color.parseColor("#9CA3AF"))
+            return
+        }
+        if (holdings == null || target == null) {
+            binding.specCResult.text = "—"
+            binding.specCSecondary.text = ""
+            binding.specCStatus.text = "Fill holdings and target price."
+            binding.specCStatus.setTextColor(Color.parseColor("#F59E0B"))
+            return
+        }
+        if (holdings < 0 || target < 0) {
+            binding.specCStatus.text = "Use non-negative numbers."
+            binding.specCStatus.setTextColor(Color.parseColor("#EF4444"))
+            return
+        }
+        val total = SpeculatorMath.valueAtTarget(holdings, target)
+        binding.specCResult.text = SpeculatorMath.formatMoney(total) + " total"
+        val bits = mutableListOf(
+            "${SpeculatorMath.formatQty(holdings)} items × ${SpeculatorMath.formatMoney(target)}",
+        )
+        if (basis != null && basis >= 0 && holdings != 0.0) {
+            val ac = SpeculatorMath.avgCost(basis, holdings)
+            val pnl = SpeculatorMath.pnlAtTarget(holdings, target, basis)
+            val sign = if (pnl >= 0) "+" else ""
+            bits.add(
+                "avg cost ${SpeculatorMath.formatMoney(ac)} · P/L $sign${SpeculatorMath.formatMoney(pnl)}",
             )
         }
+        binding.specCSecondary.text = bits.joinToString(" · ")
+        binding.specCStatus.text = "Speculative value at your target price (not advice)."
+        binding.specCStatus.setTextColor(Color.parseColor("#9CA3AF"))
     }
 
     // --- Blockchain (Robinhood Chain) ---
@@ -1052,8 +1297,8 @@ class MainActivity : AppCompatActivity() {
         private const val SECTION_TRAVEL = 1
         private const val SECTION_WEIGHT = 2
         private const val SECTION_TEMP = 3
-        private const val SECTION_CHAIN = 4
-        private const val SECTION_WALLET = 5
+        private const val SECTION_SPEC = 4
+        private const val SECTION_CHAIN = 5
         private const val SECTION_SETTINGS = 6
     }
 }

@@ -22,8 +22,19 @@ from blockchain.selftest import run_selftests, summarize as summarize_selftests
 from blockchain.tracker import PriceTracker, TrackedAsset
 from translator import LANGUAGES, SecretsStore, get_backend, list_backends
 from translator.backends import BACKEND_LABELS
-from wallet.keystore import WalletKeystore
-from wallet.rpc import DEFAULT_RH_RPC, EXPECTED_CHAIN_ID, eth_chain_id, eth_get_balance_eth
+from speculator import (
+    avg_cost,
+    cost_for_items,
+    estimate_supply,
+    format_money,
+    format_qty,
+    items_from_spend,
+    mcap_from_price,
+    parse_number,
+    pnl_at_target,
+    price_from_mcap,
+    value_at_target,
+)
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -102,7 +113,7 @@ class CurrencyConverterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Toolkit — Convert · Travel · Weight · Temp · Chain · Translator")
+        self.title("Toolkit — Convert · Travel · Weight · Temp · Spec · Chain · Translator")
         self.geometry("540x760")
         self.minsize(460, 640)
         self.resizable(True, True)
@@ -120,8 +131,6 @@ class CurrencyConverterApp(ctk.CTk):
         self.chain_category_id = cat if isinstance(cat, str) else DEFAULT_CATEGORY
         self._coin_cards: list = []
         self._chain_loaded_once = False
-        self.wallet_store = WalletKeystore()
-        self._wallet_busy = False
 
         self.exchange_rate = self.get_live_rate()
         self.php_to_usd = True  # Convert tab primary currency
@@ -179,6 +188,14 @@ class CurrencyConverterApp(ctk.CTk):
                 font=ctk.CTkFont(size=main_sz, weight="bold")
             )
             self.temp_result_secondary.configure(font=ctk.CTkFont(size=fx_sz))
+        for attr in ("spec_a_result", "spec_b_result", "spec_c_result"):
+            if hasattr(self, attr):
+                getattr(self, attr).configure(
+                    font=ctk.CTkFont(size=max(20, main_sz - 4), weight="bold")
+                )
+        for attr in ("spec_a_secondary", "spec_b_secondary", "spec_c_secondary"):
+            if hasattr(self, attr):
+                getattr(self, attr).configure(font=ctk.CTkFont(size=fx_sz))
         # Keep convert secondary line readable
         if hasattr(self, "rate_info_label"):
             self.rate_info_label.configure(
@@ -584,8 +601,8 @@ class CurrencyConverterApp(ctk.CTk):
         "Travel",
         "Weight",
         "Temp",
+        "Spec",
         "Blockchain",
-        "Wallet",
         "Translator",
         "Settings",
     )
@@ -640,8 +657,8 @@ class CurrencyConverterApp(ctk.CTk):
         self._build_travel_tab(self.section_frames["Travel"])
         self._build_weight_tab(self.section_frames["Weight"])
         self._build_temp_tab(self.section_frames["Temp"])
+        self._build_spec_tab(self.section_frames["Spec"])
         self._build_blockchain_tab(self.section_frames["Blockchain"])
-        self._build_wallet_tab(self.section_frames["Wallet"])
         self._build_translator_tab(self.section_frames["Translator"])
         self._build_settings_tab(self.section_frames["Settings"])
 
@@ -659,7 +676,7 @@ class CurrencyConverterApp(ctk.CTk):
         pop = ctk.CTkToplevel(self)
         self._nav_popup = pop
         pop.title("Menu")
-        pop.geometry("240x420")
+        pop.geometry("240x480")
         pop.resizable(False, False)
         pop.attributes("-topmost", True)
         # Anchor near top-right of main window
@@ -730,6 +747,10 @@ class CurrencyConverterApp(ctk.CTk):
                 self.subtitle_label.configure(text="lb · kg · g")
             elif name == "Temp":
                 self.subtitle_label.configure(text="Food / oven °C ↔ °F")
+            elif name == "Spec":
+                self.subtitle_label.configure(text="Buy · sell · speculate")
+                if hasattr(self, "calculate_spec_all"):
+                    self.calculate_spec_all()
             elif name == "Blockchain":
                 self.subtitle_label.configure(text="Robinhood Chain · markets")
                 # Only auto-load once — full discovery is slow; user can Refresh
@@ -737,10 +758,6 @@ class CurrencyConverterApp(ctk.CTk):
                     self, "_chain_loaded_once", False
                 ):
                     self._blockchain_refresh()
-            elif name == "Wallet":
-                self.subtitle_label.configure(text="Robinhood Chain · self-custody")
-                if hasattr(self, "_wallet_refresh_ui"):
-                    self._wallet_refresh_ui()
             elif name == "Translator":
                 self.subtitle_label.configure(text="Translate · multi-backend")
             elif name == "Settings":
@@ -1113,6 +1130,744 @@ class CurrencyConverterApp(ctk.CTk):
             text_color="#9CA3AF",
         )
         self.temp_status.pack(pady=(4, 12))
+
+
+    # --------------------------------------------------------------- spec
+    def _build_spec_tab(self, parent):
+        """Three calculators: mcap→price, spend→items, holdings×target."""
+        scroll = ctk.CTkScrollableFrame(parent, corner_radius=12, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=4, pady=4)
+
+        hero = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
+        hero.pack(fill="x", padx=4, pady=(4, 10))
+        ctk.CTkLabel(
+            hero,
+            text="Spec · item price perspectives",
+            font=ctk.CTkFont(size=17, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 4))
+        ctk.CTkLabel(
+            hero,
+            text=(
+                "Load a Robinhood token from DexScreener, lock the fields you want to keep\n"
+                "(e.g. supply), uncheck market cap and type your own for what-if price.\n"
+                "Tips: 1.5b / 50m / 250k · supply ≈ mcap÷price when Dex omits raw supply."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+            justify="left",
+        ).pack(anchor="w", padx=14, pady=(0, 12))
+
+        # --- Market import (DexScreener) ---
+        self._spec_token_rows: list = []
+        self._spec_selected_asset = None
+        self._spec_live = {"symbol": "", "supply": None, "mcap": None, "price": None, "fdv": None}
+        self._spec_busy = False
+        self.spec_lock_supply = ctk.BooleanVar(value=True)
+        self.spec_lock_mcap = ctk.BooleanVar(value=False)
+        self.spec_lock_price = ctk.BooleanVar(value=False)
+
+        mkt = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
+        mkt.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            mkt,
+            text="0 · From DexScreener (Robinhood)",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(
+            mkt,
+            text="Pick a trending / volume token → choose which live fields to keep locked",
+            font=ctk.CTkFont(size=11),
+            text_color="#64748B",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+
+        src_row = ctk.CTkFrame(mkt, fg_color="transparent")
+        src_row.pack(fill="x", padx=14, pady=2)
+        ctk.CTkLabel(src_row, text="Source", font=ctk.CTkFont(size=12, weight="bold")).pack(
+            side="left"
+        )
+        self.spec_source = ctk.CTkOptionMenu(
+            src_row,
+            values=[
+                "Trending · boosts",
+                "Trending · momentum",
+                "Top 10 volume",
+                "Top 10 memecoins",
+                "RWA / stock tokens",
+            ],
+            width=180,
+            height=32,
+        )
+        self.spec_source.set("Trending · boosts")
+        self.spec_source.pack(side="left", padx=(8, 8))
+        self.spec_load_btn = ctk.CTkButton(
+            src_row,
+            text="Load list",
+            width=100,
+            height=32,
+            corner_radius=8,
+            command=self._spec_load_market,
+        )
+        self.spec_load_btn.pack(side="left")
+
+        ctk.CTkLabel(
+            mkt, text="Token", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14, pady=(8, 2))
+        self.spec_token_menu = ctk.CTkOptionMenu(
+            mkt,
+            values=["Load a list first…"],
+            height=34,
+            command=self._spec_on_token_pick,
+        )
+        self.spec_token_menu.set("Load a list first…")
+        self.spec_token_menu.pack(fill="x", padx=14, pady=(0, 6))
+
+        self.spec_live_label = ctk.CTkLabel(
+            mkt,
+            text="Live: —",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+            justify="left",
+            wraplength=480,
+        )
+        self.spec_live_label.pack(anchor="w", padx=14, pady=(0, 8))
+
+        ctk.CTkLabel(
+            mkt,
+            text="Keep from token (checked = locked to live data)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(4, 4))
+        locks = ctk.CTkFrame(mkt, fg_color="transparent")
+        locks.pack(fill="x", padx=14, pady=(0, 6))
+        self.spec_chk_supply = ctk.CTkCheckBox(
+            locks,
+            text="Supply",
+            variable=self.spec_lock_supply,
+            command=self._spec_on_lock_change,
+            checkbox_width=20,
+            checkbox_height=20,
+        )
+        self.spec_chk_supply.pack(side="left", padx=(0, 12))
+        self.spec_chk_mcap = ctk.CTkCheckBox(
+            locks,
+            text="Market cap",
+            variable=self.spec_lock_mcap,
+            command=self._spec_on_lock_change,
+            checkbox_width=20,
+            checkbox_height=20,
+        )
+        self.spec_chk_mcap.pack(side="left", padx=(0, 12))
+        self.spec_chk_price = ctk.CTkCheckBox(
+            locks,
+            text="Price",
+            variable=self.spec_lock_price,
+            command=self._spec_on_lock_change,
+            checkbox_width=20,
+            checkbox_height=20,
+        )
+        self.spec_chk_price.pack(side="left")
+
+        btn_row = ctk.CTkFrame(mkt, fg_color="transparent")
+        btn_row.pack(fill="x", padx=14, pady=(4, 12))
+        ctk.CTkButton(
+            btn_row,
+            text="Apply locked fields → Spec",
+            height=34,
+            corner_radius=10,
+            command=self._spec_apply_locked,
+        ).pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(
+            btn_row,
+            text="Clear locks",
+            width=100,
+            height=34,
+            corner_radius=10,
+            fg_color="#334155",
+            command=self._spec_clear_locks,
+        ).pack(side="left", padx=(8, 0))
+        self.spec_mkt_status = ctk.CTkLabel(
+            mkt,
+            text="Default: supply locked · mcap free for what-if.",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+        )
+        self.spec_mkt_status.pack(anchor="w", padx=14, pady=(0, 12))
+
+        # --- A: Price from market cap ---
+        a = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#111827", "#020617"))
+        a.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            a,
+            text="1 · Price from market cap",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(
+            a,
+            text="price = market cap ÷ total supply",
+            font=ctk.CTkFont(size=11),
+            text_color="#64748B",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+        ctk.CTkLabel(a, text="Market cap ($)", font=ctk.CTkFont(size=12, weight="bold")).pack(
+            anchor="w", padx=14
+        )
+        self.spec_mcap = ctk.CTkEntry(a, height=36, placeholder_text="e.g. 5m or 5000000")
+        self.spec_mcap.pack(fill="x", padx=14, pady=(2, 6))
+        ctk.CTkLabel(
+            a, text="Total supply (items)", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14)
+        self.spec_supply = ctk.CTkEntry(
+            a, height=36, placeholder_text="e.g. 1b or 1000000000"
+        )
+        self.spec_supply.pack(fill="x", padx=14, pady=(2, 6))
+        box_a = ctk.CTkFrame(a, fg_color="#1E293B", corner_radius=10)
+        box_a.pack(fill="x", padx=14, pady=(4, 6))
+        self.spec_a_result = ctk.CTkLabel(
+            box_a,
+            text="—",
+            font=ctk.CTkFont(size=26, weight="bold"),
+            text_color="#34D399",
+        )
+        self.spec_a_result.pack(pady=(12, 2))
+        self.spec_a_secondary = ctk.CTkLabel(
+            box_a, text="", font=ctk.CTkFont(size=12), text_color="#E2E8F0"
+        )
+        self.spec_a_secondary.pack(pady=(0, 12))
+        self.spec_a_status = ctk.CTkLabel(
+            a,
+            text="Enter market cap and supply.",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+        )
+        self.spec_a_status.pack(anchor="w", padx=14, pady=(0, 12))
+
+        # --- B: Buy ---
+        b = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#111827", "#020617"))
+        b.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            b,
+            text="2 · Buy · money spent → items",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(
+            b,
+            text="items = amount spent ÷ price per item",
+            font=ctk.CTkFont(size=11),
+            text_color="#64748B",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+        ctk.CTkLabel(
+            b, text="Price per item ($)", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14)
+        self.spec_price = ctk.CTkEntry(b, height=36, placeholder_text="e.g. 0.00042 or from panel 1")
+        self.spec_price.pack(fill="x", padx=14, pady=(2, 6))
+        ctk.CTkLabel(
+            b, text="Amount spent ($)", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14)
+        self.spec_spent = ctk.CTkEntry(b, height=36, placeholder_text="e.g. 100")
+        self.spec_spent.pack(fill="x", padx=14, pady=(2, 6))
+        box_b = ctk.CTkFrame(b, fg_color="#1E293B", corner_radius=10)
+        box_b.pack(fill="x", padx=14, pady=(4, 6))
+        self.spec_b_result = ctk.CTkLabel(
+            box_b,
+            text="—",
+            font=ctk.CTkFont(size=26, weight="bold"),
+            text_color="#60A5FA",
+        )
+        self.spec_b_result.pack(pady=(12, 2))
+        self.spec_b_secondary = ctk.CTkLabel(
+            box_b, text="", font=ctk.CTkFont(size=12), text_color="#E2E8F0"
+        )
+        self.spec_b_secondary.pack(pady=(0, 12))
+        self.spec_b_status = ctk.CTkLabel(
+            b,
+            text="Enter price and spend to see how many items you get.",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+        )
+        self.spec_b_status.pack(anchor="w", padx=14, pady=(0, 12))
+
+        # --- C: Portfolio ---
+        c = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#111827", "#020617"))
+        c.pack(fill="x", padx=4, pady=6)
+        ctk.CTkLabel(
+            c,
+            text="3 · Portfolio · holdings × desired price",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(
+            c,
+            text="total value = items you hold × target price  (optional: cost basis for P/L)",
+            font=ctk.CTkFont(size=11),
+            text_color="#64748B",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+        ctk.CTkLabel(
+            c, text="Items you hold", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14)
+        self.spec_holdings = ctk.CTkEntry(
+            c, height=36, placeholder_text="e.g. 250000 or from panel 2"
+        )
+        self.spec_holdings.pack(fill="x", padx=14, pady=(2, 6))
+        ctk.CTkLabel(
+            c, text="Desired / target price ($)", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=14)
+        self.spec_target = ctk.CTkEntry(c, height=36, placeholder_text="e.g. 0.01")
+        self.spec_target.pack(fill="x", padx=14, pady=(2, 6))
+        ctk.CTkLabel(
+            c,
+            text="What you spent for these holdings ($) — optional",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).pack(anchor="w", padx=14)
+        self.spec_cost_basis = ctk.CTkEntry(
+            c, height=36, placeholder_text="optional · e.g. 100"
+        )
+        self.spec_cost_basis.pack(fill="x", padx=14, pady=(2, 6))
+        box_c = ctk.CTkFrame(c, fg_color="#1E293B", corner_radius=10)
+        box_c.pack(fill="x", padx=14, pady=(4, 6))
+        self.spec_c_result = ctk.CTkLabel(
+            box_c,
+            text="—",
+            font=ctk.CTkFont(size=26, weight="bold"),
+            text_color="#FBBF24",
+        )
+        self.spec_c_result.pack(pady=(12, 2))
+        self.spec_c_secondary = ctk.CTkLabel(
+            box_c, text="", font=ctk.CTkFont(size=12), text_color="#E2E8F0"
+        )
+        self.spec_c_secondary.pack(pady=(0, 12))
+        self.spec_c_status = ctk.CTkLabel(
+            c,
+            text="Enter holdings and a target price.",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8",
+        )
+        self.spec_c_status.pack(anchor="w", padx=14, pady=(0, 12))
+
+        for w in (
+            self.spec_mcap,
+            self.spec_supply,
+            self.spec_price,
+            self.spec_spent,
+            self.spec_holdings,
+            self.spec_target,
+            self.spec_cost_basis,
+        ):
+            w.bind("<KeyRelease>", self.calculate_spec_all)
+            w.bind("<Return>", self.calculate_spec_all)
+
+        self._spec_apply_entry_states()
+
+        ctk.CTkButton(
+            scroll,
+            text="Use price from panel 1 → panel 2",
+            height=34,
+            corner_radius=10,
+            fg_color="#334155",
+            command=self._spec_copy_price_a_to_b,
+        ).pack(fill="x", padx=8, pady=(4, 4))
+        ctk.CTkButton(
+            scroll,
+            text="Use items from panel 2 → panel 3",
+            height=34,
+            corner_radius=10,
+            fg_color="#334155",
+            command=self._spec_copy_items_b_to_c,
+        ).pack(fill="x", padx=8, pady=(0, 14))
+
+
+    # ---- Spec · DexScreener import + field locks ----
+    _SPEC_SOURCE_MAP = {
+        "Trending · boosts": "trending_boosts",
+        "Trending · momentum": "trending_momentum",
+        "Top 10 volume": "top_volume",
+        "Top 10 memecoins": "memecoins",
+        "RWA / stock tokens": "rwa",
+    }
+
+    def _spec_load_market(self):
+        if getattr(self, "_spec_busy", False):
+            return
+        self._spec_busy = True
+        self.spec_load_btn.configure(state="disabled")
+        self.spec_mkt_status.configure(text="Loading DexScreener…", text_color="#94A3B8")
+        label = self.spec_source.get()
+        cat = self._SPEC_SOURCE_MAP.get(label, "trending_boosts")
+
+        def work():
+            try:
+                tr = self.price_tracker
+                # reuse same category fetch as Chain tab
+                if hasattr(tr, "fetch_category"):
+                    rows = tr.fetch_category(cat, limit=15)
+                else:
+                    rows = self._spec_fetch_category_fallback(cat)
+                rows = [r for r in rows if not r.error and (r.price_usd or r.address)]
+                def ok():
+                    self._spec_token_rows = rows
+                    if not rows:
+                        self.spec_token_menu.configure(values=["No tokens found"])
+                        self.spec_token_menu.set("No tokens found")
+                        self.spec_mkt_status.configure(
+                            text="No priced tokens — try another source.",
+                            text_color="#F59E0B",
+                        )
+                    else:
+                        labels = [self._spec_token_label(r) for r in rows]
+                        self.spec_token_menu.configure(values=labels)
+                        self.spec_token_menu.set(labels[0])
+                        self._spec_on_token_pick(labels[0])
+                        self.spec_mkt_status.configure(
+                            text=f"Loaded {len(rows)} · pick token · toggle locks · Apply",
+                            text_color="#34D399",
+                        )
+                    self.spec_load_btn.configure(state="normal")
+                    self._spec_busy = False
+                self.after(0, ok)
+            except Exception as e:
+                def fail():
+                    self.spec_mkt_status.configure(
+                        text=f"Load failed: {e}", text_color="#F87171"
+                    )
+                    self.spec_load_btn.configure(state="normal")
+                    self._spec_busy = False
+                self.after(0, fail)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _spec_fetch_category_fallback(self, cat: str):
+        tr = self.price_tracker
+        if cat == "rwa":
+            return tr.fetch_rwa()
+        if cat == "memecoins":
+            return tr.fetch_top_memecoins(limit=15)
+        if cat == "trending_boosts" and hasattr(tr, "fetch_trending_boosts"):
+            return tr.fetch_trending_boosts(limit=15)
+        if cat == "trending_momentum" and hasattr(tr, "fetch_trending_momentum"):
+            return tr.fetch_trending_momentum(limit=15)
+        if hasattr(tr, "fetch_top_volume"):
+            return tr.fetch_top_volume(limit=15)
+        return tr.fetch_top_memecoins(limit=15)
+
+    def _spec_token_label(self, a) -> str:
+        sym = a.symbol or "?"
+        px = format_money(a.price_usd) if a.price_usd is not None else "n/a"
+        sup = a.estimated_supply
+        if sup is None and a.price_usd and a.market_cap:
+            sup = estimate_supply(a.price_usd, a.market_cap, a.fdv)
+        sup_s = format_qty(sup) if sup else "?"
+        return f"{sym}  ·  {px}  ·  sup~{sup_s}"
+
+    def _spec_on_token_pick(self, choice: str):
+        rows = getattr(self, "_spec_token_rows", []) or []
+        asset = None
+        for r in rows:
+            if self._spec_token_label(r) == choice:
+                asset = r
+                break
+        if asset is None and rows:
+            # match by symbol prefix
+            sym = (choice.split("·")[0] or "").strip().upper()
+            for r in rows:
+                if (r.symbol or "").upper() == sym:
+                    asset = r
+                    break
+        self._spec_selected_asset = asset
+        if not asset:
+            self.spec_live_label.configure(text="Live: —")
+            self._spec_live = {"symbol": "", "supply": None, "mcap": None, "price": None, "fdv": None}
+            return
+        price = asset.price_usd
+        mcap = asset.market_cap
+        fdv = asset.fdv
+        supply = asset.estimated_supply
+        if supply is None:
+            supply = estimate_supply(price, mcap, fdv)
+        # Prefer mcap; fall back to fdv for display
+        mcap_show = mcap if mcap is not None else fdv
+        self._spec_live = {
+            "symbol": asset.symbol or "?",
+            "supply": supply,
+            "mcap": mcap_show,
+            "price": price,
+            "fdv": fdv,
+            "name": asset.name or "",
+            "address": asset.address or "",
+        }
+        bits = [f"{self._spec_live['symbol']}"]
+        if price is not None:
+            bits.append(f"price {format_money(price)}")
+        if mcap_show is not None:
+            bits.append(f"mcap {format_money(mcap_show)}")
+        if supply is not None:
+            bits.append(f"supply ~{format_qty(supply)}")
+        if asset.address:
+            bits.append(asset.address[:10] + "…")
+        self.spec_live_label.configure(text="Live: " + " · ".join(bits))
+        # Auto-fill locked fields immediately
+        self._spec_apply_locked()
+
+    def _spec_on_lock_change(self):
+        self._spec_apply_entry_states()
+        # Re-apply locked values from live snapshot
+        self._spec_apply_locked(only_locked=True)
+
+    def _spec_apply_entry_states(self):
+        """Disable entries that are locked to live data."""
+        try:
+            self.spec_supply.configure(
+                state="disabled" if self.spec_lock_supply.get() else "normal"
+            )
+            self.spec_mcap.configure(
+                state="disabled" if self.spec_lock_mcap.get() else "normal"
+            )
+            self.spec_price.configure(
+                state="disabled" if self.spec_lock_price.get() else "normal"
+            )
+        except Exception:
+            pass
+
+    def _spec_set_entry(self, entry, value: float | None, as_qty: bool = False):
+        entry.configure(state="normal")
+        entry.delete(0, "end")
+        if value is not None:
+            # Prefer compact raw for calc precision
+            if as_qty and value >= 1:
+                entry.insert(0, f"{value:.12g}")
+            else:
+                entry.insert(0, f"{value:.12g}")
+
+    def _spec_apply_locked(self, only_locked: bool = False):
+        live = getattr(self, "_spec_live", None) or {}
+        if not live.get("symbol") and not any(
+            live.get(k) is not None for k in ("supply", "mcap", "price")
+        ):
+            if not only_locked:
+                self.spec_mkt_status.configure(
+                    text="Select a loaded token first.", text_color="#F59E0B"
+                )
+            self._spec_apply_entry_states()
+            return
+
+        # Temporarily enable all to write
+        for e in (self.spec_supply, self.spec_mcap, self.spec_price):
+            try:
+                e.configure(state="normal")
+            except Exception:
+                pass
+
+        if self.spec_lock_supply.get() and live.get("supply") is not None:
+            self._spec_set_entry(self.spec_supply, live["supply"], as_qty=True)
+        elif not only_locked and live.get("supply") is not None and not self.spec_supply.get().strip():
+            self._spec_set_entry(self.spec_supply, live["supply"], as_qty=True)
+
+        if self.spec_lock_mcap.get() and live.get("mcap") is not None:
+            self._spec_set_entry(self.spec_mcap, live["mcap"])
+        elif not only_locked and not self.spec_lock_mcap.get():
+            # leave user mcap alone (what-if); optionally seed once if empty
+            if not (self.spec_mcap.get() or "").strip() and live.get("mcap") is not None:
+                self._spec_set_entry(self.spec_mcap, live["mcap"])
+
+        if self.spec_lock_price.get() and live.get("price") is not None:
+            self._spec_set_entry(self.spec_price, live["price"])
+        elif not only_locked and not self.spec_lock_price.get():
+            if not (self.spec_price.get() or "").strip() and live.get("price") is not None:
+                self._spec_set_entry(self.spec_price, live["price"])
+
+        self._spec_apply_entry_states()
+        locked = []
+        if self.spec_lock_supply.get():
+            locked.append("supply")
+        if self.spec_lock_mcap.get():
+            locked.append("mcap")
+        if self.spec_lock_price.get():
+            locked.append("price")
+        free = []
+        if not self.spec_lock_supply.get():
+            free.append("supply")
+        if not self.spec_lock_mcap.get():
+            free.append("mcap")
+        if not self.spec_lock_price.get():
+            free.append("price")
+        self.spec_mkt_status.configure(
+            text=(
+                f"{live.get('symbol') or 'token'}: locked [{', '.join(locked) or 'none'}] · "
+                f"edit [{', '.join(free) or 'none'}] · recalc live"
+            ),
+            text_color="#34D399",
+        )
+        self.calculate_spec_all()
+
+    def _spec_clear_locks(self):
+        self.spec_lock_supply.set(False)
+        self.spec_lock_mcap.set(False)
+        self.spec_lock_price.set(False)
+        self._spec_apply_entry_states()
+        self.spec_mkt_status.configure(
+            text="All fields unlocked — type freely.", text_color="#94A3B8"
+        )
+
+
+    def _spec_copy_price_a_to_b(self):
+        mcap = parse_number(self.spec_mcap.get())
+        supply = parse_number(self.spec_supply.get())
+        if mcap is None or supply is None or supply == 0:
+            self.spec_a_status.configure(
+                text="Need valid market cap and non-zero supply first.",
+                text_color="#F87171",
+            )
+            return
+        try:
+            px = price_from_mcap(mcap, supply)
+        except ZeroDivisionError:
+            return
+        self.spec_price.delete(0, "end")
+        self.spec_price.insert(0, f"{px:.12g}")
+        self.calculate_spec_all()
+
+    def _spec_copy_items_b_to_c(self):
+        price = parse_number(self.spec_price.get())
+        spent = parse_number(self.spec_spent.get())
+        if price is None or spent is None or price == 0:
+            self.spec_b_status.configure(
+                text="Need valid price and spend first.",
+                text_color="#F87171",
+            )
+            return
+        try:
+            items = items_from_spend(spent, price)
+        except ZeroDivisionError:
+            return
+        self.spec_holdings.delete(0, "end")
+        self.spec_holdings.insert(0, f"{items:.12g}")
+        # optional cost basis = spent
+        if not (self.spec_cost_basis.get() or "").strip():
+            self.spec_cost_basis.insert(0, f"{spent:.12g}")
+        self.calculate_spec_all()
+
+    def calculate_spec_all(self, *_args):
+        self._calculate_spec_a()
+        self._calculate_spec_b()
+        self._calculate_spec_c()
+
+    def _calculate_spec_a(self):
+        mcap = parse_number(self.spec_mcap.get())
+        supply = parse_number(self.spec_supply.get())
+        if mcap is None and supply is None:
+            self.spec_a_result.configure(text="—")
+            self.spec_a_secondary.configure(text="")
+            self.spec_a_status.configure(
+                text="Enter market cap and supply.", text_color="#94A3B8"
+            )
+            return
+        if mcap is None or supply is None:
+            self.spec_a_result.configure(text="—")
+            self.spec_a_secondary.configure(text="")
+            self.spec_a_status.configure(
+                text="Fill both market cap and supply.", text_color="#F59E0B"
+            )
+            return
+        if supply == 0:
+            self.spec_a_result.configure(text="—")
+            self.spec_a_secondary.configure(text="")
+            self.spec_a_status.configure(
+                text="Supply cannot be zero.", text_color="#F87171"
+            )
+            return
+        if mcap < 0 or supply < 0:
+            self.spec_a_status.configure(
+                text="Use non-negative numbers.", text_color="#F87171"
+            )
+            return
+        px = price_from_mcap(mcap, supply)
+        rev = mcap_from_price(px, supply)
+        self.spec_a_result.configure(text=format_money(px) + " / item")
+        self.spec_a_secondary.configure(
+            text=f"Check: {format_money(px)} × {format_qty(supply)} ≈ {format_money(rev)} mcap"
+        )
+        self.spec_a_status.configure(
+            text=f"At mcap {format_money(mcap)} with supply {format_qty(supply)}",
+            text_color="#94A3B8",
+        )
+
+    def _calculate_spec_b(self):
+        price = parse_number(self.spec_price.get())
+        spent = parse_number(self.spec_spent.get())
+        if price is None and spent is None:
+            self.spec_b_result.configure(text="—")
+            self.spec_b_secondary.configure(text="")
+            self.spec_b_status.configure(
+                text="Enter price and spend to see how many items you get.",
+                text_color="#94A3B8",
+            )
+            return
+        if price is None or spent is None:
+            self.spec_b_result.configure(text="—")
+            self.spec_b_secondary.configure(text="")
+            self.spec_b_status.configure(
+                text="Fill both price and amount spent.", text_color="#F59E0B"
+            )
+            return
+        if price == 0:
+            self.spec_b_result.configure(text="—")
+            self.spec_b_secondary.configure(text="")
+            self.spec_b_status.configure(
+                text="Price cannot be zero.", text_color="#F87171"
+            )
+            return
+        if price < 0 or spent < 0:
+            self.spec_b_status.configure(
+                text="Use non-negative numbers.", text_color="#F87171"
+            )
+            return
+        items = items_from_spend(spent, price)
+        cost = cost_for_items(price, items)
+        self.spec_b_result.configure(text=format_qty(items) + " items")
+        self.spec_b_secondary.configure(
+            text=f"Check: {format_qty(items)} × {format_money(price)} ≈ {format_money(cost)}"
+        )
+        self.spec_b_status.configure(
+            text=f"Spending {format_money(spent)} at {format_money(price)} each",
+            text_color="#94A3B8",
+        )
+
+    def _calculate_spec_c(self):
+        holdings = parse_number(self.spec_holdings.get())
+        target = parse_number(self.spec_target.get())
+        basis = parse_number(self.spec_cost_basis.get())
+        if holdings is None and target is None:
+            self.spec_c_result.configure(text="—")
+            self.spec_c_secondary.configure(text="")
+            self.spec_c_status.configure(
+                text="Enter holdings and a target price.", text_color="#94A3B8"
+            )
+            return
+        if holdings is None or target is None:
+            self.spec_c_result.configure(text="—")
+            self.spec_c_secondary.configure(text="")
+            self.spec_c_status.configure(
+                text="Fill holdings and target price.", text_color="#F59E0B"
+            )
+            return
+        if holdings < 0 or target < 0:
+            self.spec_c_status.configure(
+                text="Use non-negative numbers.", text_color="#F87171"
+            )
+            return
+        total = value_at_target(holdings, target)
+        self.spec_c_result.configure(text=format_money(total) + " total")
+        bits = [f"{format_qty(holdings)} items × {format_money(target)}"]
+        if basis is not None and basis >= 0 and holdings != 0:
+            try:
+                ac = avg_cost(basis, holdings)
+                pnl = pnl_at_target(holdings, target, basis)
+                sign = "+" if pnl >= 0 else ""
+                bits.append(
+                    f"avg cost {format_money(ac)} · P/L {sign}{format_money(pnl)}"
+                )
+            except ZeroDivisionError:
+                pass
+        self.spec_c_secondary.configure(text=" · ".join(bits))
+        self.spec_c_status.configure(
+            text="Speculative value at your target price (not advice).",
+            text_color="#94A3B8",
+        )
 
     # ---------------------------------------------------------- blockchain
     def _build_blockchain_tab(self, parent):
@@ -1583,323 +2338,6 @@ class CurrencyConverterApp(ctk.CTk):
 
         self._blockchain_set_busy(True)
         self.chain_status.configure(text="Running self-tests…", text_color="#94A3B8")
-        threading.Thread(target=work, daemon=True).start()
-
-    # -------------------------------------------------------------- wallet
-    def _build_wallet_tab(self, parent):
-        """Self-custody wallet for Robinhood Chain (separate from markets)."""
-        scroll = ctk.CTkScrollableFrame(parent, corner_radius=14, fg_color="transparent")
-        scroll.pack(fill="both", expand=True, padx=4, pady=4)
-
-        hero = ctk.CTkFrame(scroll, corner_radius=16, fg_color=("#1E293B", "#0F172A"))
-        hero.pack(fill="x", padx=4, pady=(4, 10))
-        ctk.CTkLabel(
-            hero,
-            text="Wallet · Robinhood Chain",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(anchor="w", padx=16, pady=(14, 4))
-        ctk.CTkLabel(
-            hero,
-            text=(
-                "Self-custody EOA on chain 4663 (password-encrypted keystore).\n"
-                "This is NOT Robinhood brokerage login and NOT hood.dev's passkey UI yet —\n"
-                "it's the working foundation (create / unlock / balance). Passkey + ERC-4337 is next."
-            ),
-            font=ctk.CTkFont(size=11),
-            text_color="#94A3B8",
-            justify="left",
-        ).pack(anchor="w", padx=16, pady=(0, 12))
-
-        # Status card
-        status_card = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#111827", "#020617"))
-        status_card.pack(fill="x", padx=4, pady=6)
-        ctk.CTkLabel(
-            status_card,
-            text="Status",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#64748B",
-        ).pack(anchor="w", padx=14, pady=(10, 2))
-        self.wallet_status_label = ctk.CTkLabel(
-            status_card,
-            text="No wallet loaded",
-            font=ctk.CTkFont(size=13),
-            text_color="#E2E8F0",
-        )
-        self.wallet_status_label.pack(anchor="w", padx=14, pady=(0, 4))
-        self.wallet_address_label = ctk.CTkLabel(
-            status_card,
-            text="Address: —",
-            font=ctk.CTkFont(size=12, family="monospace"),
-            text_color="#60A5FA",
-            wraplength=480,
-            justify="left",
-        )
-        self.wallet_address_label.pack(anchor="w", padx=14, pady=(0, 4))
-        self.wallet_balance_label = ctk.CTkLabel(
-            status_card,
-            text="ETH balance: —",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="#F8FAFC",
-        )
-        self.wallet_balance_label.pack(anchor="w", padx=14, pady=(0, 4))
-        self.wallet_network_label = ctk.CTkLabel(
-            status_card,
-            text=f"Network: Robinhood Chain ({EXPECTED_CHAIN_ID}) · {DEFAULT_RH_RPC}",
-            font=ctk.CTkFont(size=10),
-            text_color="#64748B",
-            wraplength=480,
-            justify="left",
-        )
-        self.wallet_network_label.pack(anchor="w", padx=14, pady=(0, 12))
-
-        # Create / unlock
-        form = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
-        form.pack(fill="x", padx=4, pady=6)
-        ctk.CTkLabel(
-            form,
-            text="Password (encrypts private key on disk)",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).pack(anchor="w", padx=14, pady=(12, 2))
-        self.wallet_password = ctk.CTkEntry(
-            form, height=36, show="•", placeholder_text="min 6 characters"
-        )
-        self.wallet_password.pack(fill="x", padx=14, pady=2)
-
-        btn_row = ctk.CTkFrame(form, fg_color="transparent")
-        btn_row.pack(fill="x", padx=14, pady=10)
-        ctk.CTkButton(
-            btn_row,
-            text="Create wallet",
-            width=120,
-            height=36,
-            corner_radius=10,
-            command=self._wallet_create,
-        ).pack(side="left")
-        ctk.CTkButton(
-            btn_row,
-            text="Unlock",
-            width=90,
-            height=36,
-            corner_radius=10,
-            fg_color="#334155",
-            command=self._wallet_unlock,
-        ).pack(side="left", padx=8)
-        ctk.CTkButton(
-            btn_row,
-            text="Lock",
-            width=70,
-            height=36,
-            corner_radius=10,
-            fg_color="transparent",
-            border_width=1,
-            border_color="#475569",
-            command=self._wallet_lock,
-        ).pack(side="left")
-
-        ctk.CTkLabel(
-            form,
-            text="Import existing private key (optional)",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).pack(anchor="w", padx=14, pady=(6, 2))
-        self.wallet_import_pk = ctk.CTkEntry(
-            form, height=34, placeholder_text="0x… private key", show="•"
-        )
-        self.wallet_import_pk.pack(fill="x", padx=14, pady=2)
-        ctk.CTkButton(
-            form,
-            text="Import & encrypt",
-            height=34,
-            corner_radius=10,
-            fg_color="#1D4ED8",
-            command=self._wallet_import,
-        ).pack(fill="x", padx=14, pady=(6, 12))
-
-        actions = ctk.CTkFrame(scroll, corner_radius=14, fg_color=("#1E293B", "#0F172A"))
-        actions.pack(fill="x", padx=4, pady=6)
-        ctk.CTkButton(
-            actions,
-            text="Refresh balance",
-            height=36,
-            corner_radius=10,
-            command=self._wallet_refresh_balance,
-        ).pack(fill="x", padx=14, pady=(12, 6))
-        ctk.CTkButton(
-            actions,
-            text="Copy address",
-            height=36,
-            corner_radius=10,
-            fg_color="#334155",
-            command=self._wallet_copy_address,
-        ).pack(fill="x", padx=14, pady=4)
-        ctk.CTkButton(
-            actions,
-            text="Show private key (unlocked only)",
-            height=34,
-            corner_radius=10,
-            fg_color="transparent",
-            border_width=1,
-            border_color="#B45309",
-            text_color="#FBBF24",
-            command=self._wallet_show_pk,
-        ).pack(fill="x", padx=14, pady=4)
-        ctk.CTkButton(
-            actions,
-            text="Delete local wallet",
-            height=34,
-            corner_radius=10,
-            fg_color="transparent",
-            border_width=1,
-            border_color="#7F1D1D",
-            text_color="#F87171",
-            command=self._wallet_delete,
-        ).pack(fill="x", padx=14, pady=(4, 12))
-
-        self.wallet_msg = ctk.CTkLabel(
-            scroll,
-            text="",
-            font=ctk.CTkFont(size=11),
-            text_color="#94A3B8",
-            wraplength=480,
-            justify="left",
-        )
-        self.wallet_msg.pack(anchor="w", padx=8, pady=(4, 12))
-        self._wallet_refresh_ui()
-
-    def _wallet_msg_set(self, text: str, ok: bool = True):
-        self.wallet_msg.configure(
-            text=text, text_color="#34D399" if ok else "#F87171"
-        )
-
-    def _wallet_refresh_ui(self):
-        try:
-            store = self.wallet_store
-            if not store.has_wallet:
-                self.wallet_status_label.configure(text="No local wallet yet")
-                self.wallet_address_label.configure(text="Address: —")
-                self.wallet_balance_label.configure(text="ETH balance: —")
-                return
-            addr = store.address or "—"
-            if store.is_unlocked:
-                self.wallet_status_label.configure(text="Unlocked · self-custody EOA")
-            else:
-                self.wallet_status_label.configure(text="Locked · enter password to unlock")
-            self.wallet_address_label.configure(text=f"Address: {addr}")
-        except Exception as e:
-            self._wallet_msg_set(f"UI error: {e}", ok=False)
-
-    def _wallet_create(self):
-        pw = self.wallet_password.get()
-        try:
-            rec = self.wallet_store.create(pw)
-            self.wallet_password.delete(0, "end")
-            self._wallet_refresh_ui()
-            self._wallet_msg_set(
-                f"Created {rec.address} — password encrypts the key in wallet_keystore.json"
-            )
-            self._wallet_refresh_balance()
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_unlock(self):
-        pw = self.wallet_password.get()
-        try:
-            rec = self.wallet_store.unlock(pw)
-            self.wallet_password.delete(0, "end")
-            self._wallet_refresh_ui()
-            self._wallet_msg_set(f"Unlocked {rec.address}")
-            self._wallet_refresh_balance()
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_lock(self):
-        try:
-            self.wallet_store.lock()
-            self._wallet_refresh_ui()
-            self._wallet_msg_set("Wallet locked", ok=True)
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_import(self):
-        pw = self.wallet_password.get()
-        pk = self.wallet_import_pk.get()
-        try:
-            rec = self.wallet_store.import_private_key(pk, pw)
-            self.wallet_password.delete(0, "end")
-            self.wallet_import_pk.delete(0, "end")
-            self._wallet_refresh_ui()
-            self._wallet_msg_set(f"Imported {rec.address}")
-            self._wallet_refresh_balance()
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_copy_address(self):
-        addr = self.wallet_store.address
-        if not addr:
-            self._wallet_msg_set("No address to copy", ok=False)
-            return
-        try:
-            self.clipboard_clear()
-            self.clipboard_append(addr)
-            self._wallet_msg_set("Address copied to clipboard")
-        except Exception as e:
-            self._wallet_msg_set(f"Copy failed: {e}", ok=False)
-
-    def _wallet_show_pk(self):
-        try:
-            pk = self.wallet_store.export_private_key()
-            self._wallet_msg_set(
-                f"PRIVATE KEY (keep secret):\n{pk}",
-                ok=False,
-            )
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_delete(self):
-        try:
-            self.wallet_store.delete()
-            self._wallet_refresh_ui()
-            self.wallet_balance_label.configure(text="ETH balance: —")
-            self._wallet_msg_set("Local keystore deleted")
-        except Exception as e:
-            self._wallet_msg_set(str(e), ok=False)
-
-    def _wallet_refresh_balance(self):
-        addr = self.wallet_store.address
-        if not addr:
-            self._wallet_msg_set("Create or unlock a wallet first", ok=False)
-            return
-        if self._wallet_busy:
-            return
-
-        def work():
-            try:
-                cid = eth_chain_id(timeout=10.0)
-                bal = eth_get_balance_eth(addr, timeout=10.0)
-                msg = f"RPC chainId={cid} (expect {EXPECTED_CHAIN_ID})"
-                if cid != EXPECTED_CHAIN_ID:
-                    msg += " · WARNING: unexpected chain"
-
-                def apply():
-                    self.wallet_balance_label.configure(
-                        text=f"ETH balance: {bal:.6f} ETH"
-                    )
-                    self.wallet_network_label.configure(
-                        text=f"Network: Robinhood · chain {cid} · {DEFAULT_RH_RPC}"
-                    )
-                    self._wallet_msg_set(msg)
-                    self._wallet_busy = False
-
-                self.after(0, apply)
-            except Exception as e:
-                def fail():
-                    self.wallet_balance_label.configure(text="ETH balance: (RPC error)")
-                    self._wallet_msg_set(f"Balance RPC: {e}", ok=False)
-                    self._wallet_busy = False
-
-                self.after(0, fail)
-
-        self._wallet_busy = True
-        self._wallet_msg_set("Querying Robinhood RPC…")
         threading.Thread(target=work, daemon=True).start()
 
     # ------------------------------------------------------------ translator

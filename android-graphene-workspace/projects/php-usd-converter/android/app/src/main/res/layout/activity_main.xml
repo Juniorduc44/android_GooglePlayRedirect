@@ -646,6 +646,611 @@
             </com.google.android.material.card.MaterialCardView>
         </ScrollView>
 
+
+        <!-- SPEC TAB (item / token price perspectives) -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardBackgroundColor="@color/card"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/spec_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="17sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="@string/spec_blurb"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+
+                <!-- Market import from DexScreener -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@color/card"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/spec_mkt_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/spec_mkt_help"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_mkt_source"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <Spinner
+                            android:id="@+id/specSourceSpinner"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/specLoadButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_mkt_load"
+                            android:textAllCaps="false"
+                            app:backgroundTint="@color/button"
+                            app:cornerRadius="12dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_mkt_token"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <Spinner
+                            android:id="@+id/specTokenSpinner"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp" />
+
+                        <TextView
+                            android:id="@+id/specLiveLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_mkt_live_idle"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_mkt_locks"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <CheckBox
+                                android:id="@+id/specLockSupply"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:checked="true"
+                                android:text="@string/spec_lock_supply"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+
+                            <CheckBox
+                                android:id="@+id/specLockMcap"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:checked="false"
+                                android:text="@string/spec_lock_mcap"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+
+                            <CheckBox
+                                android:id="@+id/specLockPrice"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:checked="false"
+                                android:text="@string/spec_lock_price"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/specApplyLockedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_mkt_apply"
+                            android:textAllCaps="false"
+                            app:backgroundTint="@color/button"
+                            app:cornerRadius="12dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/specClearLocksButton"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="40dp"
+                            android:layout_marginTop="6dp"
+                            android:text="@string/spec_mkt_clear_locks"
+                            android:textAllCaps="false"
+                            android:textColor="@color/accent"
+                            app:strokeColor="@color/accent"
+                            app:cornerRadius="12dp" />
+
+                        <TextView
+                            android:id="@+id/specMktStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_mkt_default_status"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Panel 1: mcap → price -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@color/card"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/spec_a_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/spec_a_formula"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_mcap_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specMcap"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_mcap_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_supply_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specSupply"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_supply_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/bg_result"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <TextView
+                                android:id="@+id/specAResult"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="—"
+                                android:textColor="@color/success"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/specASecondary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:gravity="center"
+                                android:text=""
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/specAStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_a_status"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Panel 2: buy -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@color/card"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/spec_b_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/spec_b_formula"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_price_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specPrice"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_price_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_spent_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specSpent"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_spent_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/bg_result"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <TextView
+                                android:id="@+id/specBResult"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="—"
+                                android:textColor="@color/accent"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/specBSecondary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:gravity="center"
+                                android:text=""
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/specBStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_b_status"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Panel 3: portfolio -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@color/card"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/spec_c_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/spec_c_formula"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="@string/spec_holdings_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specHoldings"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_holdings_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_target_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specTarget"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_target_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_basis_label"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+
+                        <EditText
+                            android:id="@+id/specCostBasis"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/spec_basis_hint"
+                            android:inputType="text"
+                            android:paddingHorizontal="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
+                            android:textSize="15sp"
+                            android:importantForAutofill="no" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/bg_result"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <TextView
+                                android:id="@+id/specCResult"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="—"
+                                android:textColor="#FBBF24"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/specCSecondary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:gravity="center"
+                                android:text=""
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/specCStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/spec_c_status"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/specCopyPriceButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/spec_copy_price"
+                    android:textAllCaps="false"
+                    android:textColor="@color/accent"
+                    app:strokeColor="@color/accent"
+                    app:cornerRadius="12dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/specCopyItemsButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/spec_copy_items"
+                    android:textAllCaps="false"
+                    android:textColor="@color/accent"
+                    app:strokeColor="@color/accent"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+        </ScrollView>
+
         <!-- BLOCKCHAIN TAB (Robinhood Chain price tracker) -->
         <ScrollView
             android:layout_width="match_parent"
@@ -864,168 +1469,6 @@
                     android:textIsSelectable="true"
                     android:textSize="11sp" />
             </LinearLayout>
-        </ScrollView>
-
-        <!-- WALLET TAB (self-custody, separate from Chain markets) -->
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true">
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardBackgroundColor="@color/card"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/wallet_title"
-                        android:textColor="@color/text_primary"
-                        android:textStyle="bold"
-                        android:textSize="17sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="@string/wallet_blurb"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/walletStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/wallet_status_none"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:id="@+id/walletAddress"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:background="@drawable/bg_result"
-                        android:fontFamily="monospace"
-                        android:padding="12dp"
-                        android:text="@string/wallet_address_none"
-                        android:textColor="@color/accent"
-                        android:textIsSelectable="true"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/walletBalance"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="@string/wallet_balance_none"
-                        android:textColor="@color/text_primary"
-                        android:textStyle="bold"
-                        android:textSize="16sp" />
-
-                    <TextView
-                        android:id="@+id/walletNetwork"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/wallet_network"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-
-                    <EditText
-                        android:id="@+id/walletPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="14dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="@string/wallet_password_hint"
-                        android:inputType="textPassword"
-                        android:paddingHorizontal="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:importantForAutofill="no" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/walletCreateButton"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:text="@string/wallet_create"
-                            android:textAllCaps="false"
-                            app:backgroundTint="@color/button"
-                            app:cornerRadius="12dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/walletUnlockButton"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_marginStart="8dp"
-                            android:layout_weight="1"
-                            android:text="@string/wallet_unlock"
-                            android:textAllCaps="false"
-                            app:backgroundTint="@color/button"
-                            app:cornerRadius="12dp" />
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/walletLockButton"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/wallet_lock"
-                        android:textAllCaps="false"
-                        android:textColor="@color/accent"
-                        app:strokeColor="@color/accent"
-                        app:cornerRadius="12dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/walletRefreshBalanceButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/wallet_refresh_balance"
-                        android:textAllCaps="false"
-                        app:backgroundTint="@color/button"
-                        app:cornerRadius="12dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/walletCopyButton"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/wallet_copy"
-                        android:textAllCaps="false"
-                        android:textColor="@color/accent"
-                        app:strokeColor="@color/accent"
-                        app:cornerRadius="12dp" />
-
-                    <TextView
-                        android:id="@+id/walletMessage"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
         </ScrollView>
 
         <!-- SETTINGS TAB -->

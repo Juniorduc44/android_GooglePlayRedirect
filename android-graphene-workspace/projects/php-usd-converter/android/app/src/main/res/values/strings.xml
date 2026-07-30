@@ -124,29 +124,9 @@
     <string name="section_travel">Travel</string>
     <string name="section_weight">Weight</string>
     <string name="section_temp">Temp</string>
+    <string name="section_spec">Spec</string>
     <string name="section_chain">Chain</string>
     <string name="section_settings">Settings</string>
-    <string name="section_wallet">Wallet</string>
-    <string name="wallet_title">Wallet · Robinhood Chain</string>
-    <string name="wallet_blurb">Self-custody local keystore (password-encrypted). Not Robinhood brokerage login. Passkey/ERC-4337 smart account comes next.</string>
-    <string name="wallet_status_none">No local wallet yet</string>
-    <string name="wallet_status_locked">Locked — enter password</string>
-    <string name="wallet_status_unlocked">Unlocked · self-custody EOA</string>
-    <string name="wallet_address_none">Address: —</string>
-    <string name="wallet_balance_none">ETH balance: —</string>
-    <string name="wallet_network">Network: Robinhood Chain (4663)</string>
-    <string name="wallet_password_hint">Password (min 6 chars)</string>
-    <string name="wallet_create">Create wallet</string>
-    <string name="wallet_unlock">Unlock</string>
-    <string name="wallet_lock">Lock</string>
-    <string name="wallet_refresh_balance">Refresh balance</string>
-    <string name="wallet_copy">Copy address</string>
-    <string name="wallet_created">Wallet created</string>
-    <string name="wallet_unlocked">Wallet unlocked</string>
-    <string name="wallet_locked">Wallet locked</string>
-    <string name="wallet_copied">Address copied</string>
-    <string name="wallet_bad_password">Wrong password or no wallet</string>
-    <string name="wallet_need_password">Password min 6 characters</string>
     <string name="settings_display">Display</string>
     <string name="settings_result_size_help">Result text size for Convert, Travel, Weight, and Temp. Use Large or Extra large if results are hard to read.</string>
     <string name="size_small">Small</string>
@@ -154,4 +134,47 @@
     <string name="size_large">Large (default)</string>
     <string name="size_xlarge">Extra large</string>
     <string name="settings_size_saved">Result text size: %1$s (saved)</string>
+
+    <string name="spec_title">Spec · item price perspectives</string>
+    <string name="spec_blurb">Load DexScreener tokens, lock supply, edit mcap for what-ifs. Shortcuts: 1.5b / 50m / 250k.</string>
+    <string name="spec_a_title">1 · Price from market cap</string>
+    <string name="spec_a_formula">price = market cap ÷ total supply</string>
+    <string name="spec_mcap_label">Market cap ($)</string>
+    <string name="spec_mcap_hint">e.g. 5m or 5000000</string>
+    <string name="spec_supply_label">Total supply (items)</string>
+    <string name="spec_supply_hint">e.g. 1b or 1000000000</string>
+    <string name="spec_a_status">Enter market cap and supply.</string>
+    <string name="spec_b_title">2 · Buy · money spent → items</string>
+    <string name="spec_b_formula">items = amount spent ÷ price per item</string>
+    <string name="spec_price_label">Price per item ($)</string>
+    <string name="spec_price_hint">e.g. 0.00042</string>
+    <string name="spec_spent_label">Amount spent ($)</string>
+    <string name="spec_spent_hint">e.g. 100</string>
+    <string name="spec_b_status">Enter price and spend to see how many items you get.</string>
+    <string name="spec_c_title">3 · Portfolio · holdings × desired price</string>
+    <string name="spec_c_formula">total value = holdings × target price (optional cost basis for P/L)</string>
+    <string name="spec_holdings_label">Items you hold</string>
+    <string name="spec_holdings_hint">e.g. 250000</string>
+    <string name="spec_target_label">Desired / target price ($)</string>
+    <string name="spec_target_hint">e.g. 0.01</string>
+    <string name="spec_basis_label">What you spent for these holdings ($) — optional</string>
+    <string name="spec_basis_hint">optional · e.g. 100</string>
+    <string name="spec_c_status">Enter holdings and a target price.</string>
+    <string name="spec_copy_price">Use price from panel 1 → panel 2</string>
+    <string name="spec_copy_items">Use items from panel 2 → panel 3</string>
+    <string name="spec_subtitle">Buy · sell · speculate</string>
+
+    <string name="spec_mkt_title">0 · From DexScreener (Robinhood)</string>
+    <string name="spec_mkt_help">Load a token, keep supply locked, uncheck market cap and type your own what-if.</string>
+    <string name="spec_mkt_source">Source</string>
+    <string name="spec_mkt_load">Load list</string>
+    <string name="spec_mkt_token">Token</string>
+    <string name="spec_mkt_live_idle">Live: —</string>
+    <string name="spec_mkt_locks">Keep from token (checked = locked to live)</string>
+    <string name="spec_lock_supply">Supply</string>
+    <string name="spec_lock_mcap">Mcap</string>
+    <string name="spec_lock_price">Price</string>
+    <string name="spec_mkt_apply">Apply locked fields → Spec</string>
+    <string name="spec_mkt_clear_locks">Clear locks</string>
+    <string name="spec_mkt_default_status">Default: supply locked · mcap free for what-if.</string>
 </resources>
