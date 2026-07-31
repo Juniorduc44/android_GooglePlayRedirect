@@ -22,12 +22,18 @@ Current version file: [`VERSION`](./VERSION) → `1.8.1`
 
 ### Changelog
 
+#### Checkpoint 2026-07-31 (research only)
+
+- **Wallet / passkey work parked** — not in app menus (see `tools/passkey-research/CHECKPOINT.md`)
+- Product remains **v1.8.1**: Convert · Travel · Weight · Temp · Spec · Chain · Settings
+
 #### v1.8.1
 
 - **Spec · From DexScreener**: load trending/volume/meme/RWA tokens
 - **Field locks**: keep supply (or mcap/price) from live data; uncheck to type what-if values
 - Estimated supply from mcap÷price when Dex omits raw supply
 - Updated plan: [`docs/SPEC_PLAN.md`](./docs/SPEC_PLAN.md)
+- **No Wallet section** in the shipped app
 
 #### v1.8.0
 

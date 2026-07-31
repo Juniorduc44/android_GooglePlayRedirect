@@ -1,8 +1,9 @@
 # Plan: Robinhood Chain access, price tracker & passkey wallet
 
-**Status:** Phase 1 (price tracker) is the product. **Wallet / passkey work cancelled** — app is a Chain **viewer** only.  
+**Status:** Phase 1 (price tracker) + Spec are the product. **Wallet / passkey parked** (2026-07-31) — no unfinished Wallet UI in the app.  
+**Passkey research checkpoint:** `tools/passkey-research/CHECKPOINT.md`  
 **UI + speed next steps:** `docs/UI_PERF_PLAN.md`  
-**Date:** 2026-07-29  
+**Date:** 2026-07-31  
 **Sources:** `docs/Robinhood.pdf` (Crypto Trading API), [docs.robinhood.com/chain](https://docs.robinhood.com/chain/), [hood.dev](https://hood.dev/), [DexScreener API](https://docs.dexscreener.com/api/reference), local `tools/browser-harness`.
 
 ---

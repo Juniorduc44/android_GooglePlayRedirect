@@ -1,0 +1,1191 @@
+# Source: https://docs.turnkey.com/features/networks/ethereum
+
+
+
+
+
+
+Ethereum (EVM) support on Turnkey - Turnkey
+
+
+
+
+
+Documentation Index
+
+Fetch the complete documentation index at:
+
+/llms.txt
+
+Use this file to discover all available pages before exploring further.
+
+
+
+
+Skip to main content
+
+
+Turnkey
+home page
+
+Search...
+
+⌘
+K
+
+Ask Assistant
+
+Support
+
+Blog
+
+Contact us
+
+Get started
+
+Get started
+
+Search...
+
+Navigation
+
+Supported networks
+
+Ethereum (EVM) support on Turnkey
+
+Home
+
+Solutions
+
+Documentation
+
+API & SDK reference
+
+Security
+
+
+
+Get started
+
+About Turnkey
+
+Account setup
+
+Using LLMs
+
+Code examples
+
+Going live
+
+Features
+
+Organizations
+
+Users
+
+Authentication
+
+Wallet and key management
+
+Chain support
+
+Overview
+
+Supported networks
+
+Ethereum (EVM)
+
+Solana (SVM)
+
+Bitcoin
+
+Spark
+
+Hyperliquid
+
+Cosmos
+
+Tron
+
+Sui
+
+Sei
+
+Stacks
+
+Aptos
+
+Tempo
+
+Movement
+
+IOTA
+
+Doge
+
+Canton
+
+Cardano
+
+Others
+
+Policies
+
+Transaction management
+
+Turnkey Verifiable Cloud
+
+IP Allowlist
+
+Webhooks
+
+Reference
+
+Resource limits
+
+Migrating to Turnkey
+
+FAQ
+
+
+
+
+
+
+
+On this page
+
+Address derivation
+
+Transaction construction and signing
+
+Transaction management and gas sponsorship
+
+What Turnkey auto-fills
+
+Gas sponsorship (fee abstraction)
+
+Non-sponsored transactions
+
+Transaction status
+
+Transaction parsing, policies, and signing
+
+Ethereum ABIs
+
+What transaction types does Turnkey support?
+
+EIP-4844 (type 3) support
+
+EIP-7702 (type 4) support
+
+EIP-712
+
+Raw digest
+
+Encoded
+
+Examples
+
+Account abstraction
+
+EIP-1193 provider
+
+Wallet signer
+
+Examples and demos
+
+Which EVM chains does Turnkey support?
+
+Supported networks
+
+Ethereum (EVM) support on Turnkey
+
+Copy page
+
+Copy page
+
+Copy page
+
+Copy page
+
+​
+
+Address derivation
+
+Turnkey supports EVM address derivation with
+ADDRESS_TYPE_ETHEREUM
+. This address format is valid across all EVM chains and L2s.
+
+​
+
+Transaction construction and signing
+
+To construct and sign an EVM transaction with Turnkey, we offer:
+
+@turnkey/viem
+: contains a
+createAccount
+method to create a Turnkey-powered
+custom account
+which
+Viem
+can use seamlessly.
+
+@turnkey/ethers
+: contains a
+TurnkeySigner
+which implements Ethers’
+AbstractSigner
+interface. See
+Ethers docs
+.
+
+​
+
+Transaction management and gas sponsorship
+
+Turnkey’s
+Transaction Management
+handles the full lifecycle of EVM transactions — construction, broadcast, nonce management, and status monitoring — down to a few API calls.
+
+​
+
+What Turnkey auto-fills
+
+When you submit a transaction via
+ethSendTransaction
+, Turnkey automatically manages:
+
+Nonce
+: set correctly to order transactions and prevent conflicts
+
+Gas estimation
+: calculated to ensure inclusion under current network conditions
+
+Priority fee (tip)
+: set to target timely block inclusion per EIP-1559
+
+​
+
+Gas sponsorship (fee abstraction)
+
+Set
+sponsor: true
+to enable fee sponsorship — your users never need to hold native tokens to pay gas. Turnkey covers fees on your behalf and passes costs through as a monthly line item.
+
+Supported networks:
+
+Base (eip155:8453)
+
+Polygon (eip155:137)
+
+Ethereum (eip155:1)
+
+Arbitrum (eip155:42161)
+
+Tempo (eip155:4217)
+
+BNB Chain (eip155:56)
+
+Base Sepolia, Polygon Amoy, Ethereum Sepolia, Arbitrum Sepolia, Tempo Moderato, BNB Chain Testnet (testnets)
+
+To enable gas sponsorship, ensure it is activated in your Turnkey dashboard before setting
+sponsor: true
+.
+
+​
+
+Non-sponsored transactions
+
+Set
+sponsor: false
+to have gas paid by the sender’s wallet. Turnkey still manages nonce, gas estimation, tip fees, broadcast, and status monitoring — you just don’t get fee abstraction.
+
+​
+
+Transaction status
+
+After broadcast, Turnkey monitors your transaction until it is included in a block or fails, with structured error decoding for smart contract reverts. Query status via the
+Get Send Transaction Status
+endpoint.
+
+For a full walkthrough, see
+Sending Sponsored EVM Transactions
+.
+
+​
+
+Transaction parsing, policies, and signing
+
+Turnkey has built an EVM parser which runs in a secure enclave, to parse unsigned EVM transactions and extract useful metadata: transaction source, destination, amount, chain ID, and more. See the
+EthereumTransaction
+struct in our
+policy language
+page for a full list.
+
+As a bonus, Turnkey also takes care of combining the signature with the original payload if you use the
+SIGN_TRANSACTION
+activity types: the input is the unsigned payload (RLP encoded), and the output is the signed RLP encoded transaction, ready to be broadcast!
+
+Additionally, Turnkey supports signing operations over EIP-712 Typed Data payloads, with an accompanying
+eth.eip_712
+namespace in our policy engine that can be used for gatekeeping. Additional details can be found
+here
+.
+
+​
+
+Ethereum ABIs
+
+You can use Ethereum ABIs in conjunction with our policy engine to secure users’ transactions. See
+the guide
+for more details.
+
+​
+
+What transaction types does Turnkey support?
+
+Turnkey supports the following transaction types:
+legacy, EIP-2930 (Type 1), EIP-1559 (Type 2), EIP-4844 (Type 3), EIP-7702 (Type 4)
+. These transactions will get parsed by our transaction parser, and are compatible with our
+policy engine
+.
+
+​
+
+EIP-4844 (type 3) support
+
+You can use Turnkey’s
+SignTransaction
+endpoint to parse and sign Type 3 transactions, which conform to the
+EIP-4844 standard
+.
+
+We’ve also added Type 3 support to our policy engine by including the parameter
+max_fee_per_blob_gas
+. More details about our policy engine language can be found
+here
+, and an example demonstrating how to use
+@turnkey/viem
+to sign Type 3 transactions can be found
+here
+.
+
+Note: for Type 3 transactions, we are specifically handling parsing for payloads containing only the transaction payload body, without any wrappers around blobs, commitments, or proofs.
+
+Accepted:
+tx_payload_body
+, defined as:
+rlp([chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas, gas_limit, to, value, data, access_list, max_fee_per_blob_gas, blob_versioned_hashes, y_parity, r, s])
+
+Rejected:
+rlp([tx_payload_body, blobs, commitments, proofs])
+
+See that this is effectively wrapping the same tx_payload_body shape (defined above) alongside other blob-specific data
+
+We do not sign payloads that conform to this format. Payloads that consists of
+rlp([tx_payload_body, blobs, commitments, proofs])
+are not transactions, they’re messages which are part of the gossip protocol to persist blobs on the beacon chain. In other words, they’re not meant to be signed: the signatures / integrity is taken care of with the signed commitments & proofs inside of these messages.
+
+See
+https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#blob-transaction
+and
+https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#networking
+, respectively, for more.
+
+​
+
+EIP-7702 (type 4) support
+
+In addition to adding support for Type 3 transactions, Turnkey now also supports Type 4 transactions, which conform to the
+EIP-7702 standard
+. From
+https://eip7702.io/
+:
+
+EIP-7702 gives superpowers to EOAs.
+
+Specifically, it allows any EOA to set its code based on any existing smart contract. To do so, an EOA owner would sign an authorization that could then be submitted by anyone as part of the new transaction type. The code will be valid until replaced by another authorization. The authorization could be given for a single chain, or all chains at once.
+
+This setup allows an EOA to mimic a smart contract account, particularly allowing transaction bundling, gas sponsorships, and custom permissioning schemes.
+
+You can take advantage of Type 4 transaction support on Turnkey to:
+
+Enable gasless transaction experiences: Design applications where transactions can be sponsored by third parties, removing the ETH requirement barrier for new users and simplifying onboarding.
+
+Create seamless applications with transaction batching: Bundle multiple operations into single transactions, significantly reducing gas costs and improving UX for complex DeFi or high-frequency trading.
+
+Implement flexible authentication systems: Build applications that can leverage passkeys and biometrics while maintaining compatibility with existing EOA infrastructure and reputation systems.
+
+For a turnkey solution to gasless transactions using EIP-7702, check out the
+Gas Station SDK
+, which provides clean abstractions for authorization, intent signing, and paymaster execution.
+
+Type 4 transaction support is also live for our policy engine. Details about our engine language can be found
+here
+, and an example demonstrating how to use @turnkey/viem to sign Type 4 transactions can be found
+here
+.
+
+​
+
+EIP-712
+
+At a high level, you can sign EIP-712 payloads using Turnkey in a few ways.
+
+​
+
+Raw digest
+
+You can pre-compute the hash of the EIP-712 payload body, and sign it directly using Turnkey. Here’s an example in JavaScript pseudocode:
+
+const
+
+typedData
+
+=
+
+{
+
+domain:
+
+{
+
+name:
+
+"Ether Mail"
+
+,
+
+version:
+
+"1"
+
+,
+
+chainId:
+
+1
+
+,
+
+verifyingContract:
+
+"0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+
+,
+
+},
+
+types:
+
+{
+
+Person:
+
+[
+
+{
+
+name:
+
+"name"
+
+,
+
+type:
+
+"string"
+
+},
+
+{
+
+name:
+
+"wallet"
+
+,
+
+type:
+
+"address"
+
+},
+
+],
+
+Mail:
+
+[
+
+{
+
+name:
+
+"from"
+
+,
+
+type:
+
+"Person"
+
+},
+
+{
+
+name:
+
+"to"
+
+,
+
+type:
+
+"Person"
+
+},
+
+{
+
+name:
+
+"contents"
+
+,
+
+type:
+
+"string"
+
+},
+
+],
+
+},
+
+primaryType:
+
+"Mail"
+
+,
+
+message:
+
+{
+
+from:
+
+{
+
+name:
+
+"Cow"
+
+,
+
+wallet:
+
+"0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"
+
+,
+
+},
+
+to:
+
+{
+
+name:
+
+"Bob"
+
+,
+
+wallet:
+
+"0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+
+,
+
+},
+
+contents:
+
+"Hello, Bob!"
+
+,
+
+},
+
+}
+
+// This simply hashes the typed data using keccak256, ultimately producing a signable digest
+
+const
+
+hashedPayload
+
+=
+
+hashTypedData
+
+(
+
+typedData
+
+);
+
+const
+
+{
+
+activity
+
+,
+
+r
+
+,
+
+s
+
+,
+
+v
+
+}
+
+=
+
+await
+
+turnkeyClient
+
+.
+
+signRawPayload
+
+({
+
+organizationId:
+
+"<your org ID>"
+
+,
+
+signWith:
+
+"<your signing address"
+
+>
+
+,
+
+payload:
+
+hashedPayload
+
+,
+
+encoding:
+
+"PAYLOAD_ENCODING_HEXADECIMAL"
+
+,
+
+hashFunction:
+
+"HASH_FUNCTION_NO_OP"
+
+,
+
+});
+
+The caveat with this approach is that Turnkey will receive a raw digest and only that; therefore, you cannot write policies enforcing rules against the fields of the EIP-712 payload body.
+
+​
+
+Encoded
+
+If you
+do
+want to write policies enforcing rules against the fields of the EIP-712 payload body, you will need to pass over the payload serialized (not hashed!), with the
+payloadEncoding
+type as
+"PAYLOAD_ENCODING_EIP712"
+. This way, you can write Policy Conditions which directly reference the attributes of this Typed Data. This can be used to support integrations involving Hyperliquid, ERC-2612 Permits, or ERC-3009 Transfers, among many others.
+
+Here’s the same example, but with slight modifications in order to allow policies targeting attributes of the Typed Data:
+
+const
+
+typedData
+
+=
+
+{
+
+domain:
+
+{
+
+name:
+
+"Ether Mail"
+
+,
+
+version:
+
+"1"
+
+,
+
+chainId:
+
+1
+
+,
+
+verifyingContract:
+
+"0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+
+,
+
+},
+
+types:
+
+{
+
+Person:
+
+[
+
+{
+
+name:
+
+"name"
+
+,
+
+type:
+
+"string"
+
+},
+
+{
+
+name:
+
+"wallet"
+
+,
+
+type:
+
+"address"
+
+},
+
+],
+
+Mail:
+
+[
+
+{
+
+name:
+
+"from"
+
+,
+
+type:
+
+"Person"
+
+},
+
+{
+
+name:
+
+"to"
+
+,
+
+type:
+
+"Person"
+
+},
+
+{
+
+name:
+
+"contents"
+
+,
+
+type:
+
+"string"
+
+},
+
+],
+
+},
+
+primaryType:
+
+"Mail"
+
+,
+
+message:
+
+{
+
+from:
+
+{
+
+name:
+
+"Cow"
+
+,
+
+wallet:
+
+"0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"
+
+,
+
+},
+
+to:
+
+{
+
+name:
+
+"Bob"
+
+,
+
+wallet:
+
+"0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+
+,
+
+},
+
+contents:
+
+"Hello, Bob!"
+
+,
+
+},
+
+}
+
+// This gets the typed data into a format to send over to Turnkey; note that this is *not* equivalent to generating a hash of the typed data
+
+const
+
+serializedPayload
+
+=
+
+serializeTypedData
+
+(
+
+typedData
+
+);
+
+const
+
+{
+
+activity
+
+,
+
+r
+
+,
+
+s
+
+,
+
+v
+
+}
+
+=
+
+await
+
+turnkeyClient
+
+.
+
+signRawPayload
+
+({
+
+organizationId:
+
+"<your org ID>"
+
+,
+
+signWith:
+
+"<your signing address"
+
+>
+
+,
+
+payload:
+
+serializedPayload
+
+,
+
+encoding:
+
+"PAYLOAD_ENCODING_EIP712"
+
+,
+
+// this is crucial!
+
+hashFunction:
+
+"HASH_FUNCTION_NO_OP"
+
+,
+
+});
+
+This is ultimately how our Viem and Ethers implementations pass Typed Data over to Turnkey for signing.
+
+​
+
+Examples
+
+SDK examples demonstrating the signing side of the above-mentioned integrations can be found below:
+
+Using
+ethers
+:
+
+hyperliquid
+
+erc-2612
+
+erc-3009
+
+Using
+viem
+:
+
+hyperliquid
+
+erc-2612
+
+erc-3009
+
+You can also find examples of EIP-712-aware Policies associated with these integrations on
+our policy examples page
+.
+
+​
+
+Account abstraction
+
+Turnkey is built to be flexible: a lot of our customers use Turnkey as a smart contract signer, alongside other types of signers.
+
+This is so common that AA wallet providers have integrated Turnkey as a default solution in their documentation. Refer to our
+AA Wallet
+documentation for further information.
+
+​
+
+EIP-1193 provider
+
+We’ve published an experimental package, which adheres to the
+EIP-1193
+standard. It’s built to integrate seamlessly with a broad spectrum of EVM-compatible chains, offering capabilities like account management, transaction signing, and blockchain interaction.
+
+​
+
+Wallet signer
+
+Did you know? Turnkey activities can be signed with an API key, a passkey…or any Ethereum wallet if you use our package!
+
+​
+
+Examples and demos
+
+A lot of our demos use EVM chains and capabilities. The most complete demo is our
+Demo Embedded wallet
+, a fully-functional, hosted wallet which showcases (among other things) send and receive functionality on Sepolia.
+
+Try it out at
+wallet.tx.xyz
+!
+
+The code behind this demo is open-source, available at
+https://github.com/tkhq/demo-embedded-wallet/
+
+If you’re looking for shorter, more focused examples, here are a few worth checking out:
+
+with-ethers
+: demonstrates how to use Turnkey with Ethers
+
+with-viem
+: demonstrates how to use Turnkey with Viem
+
+with-zerodev-aa
+: demonstrates how to use Turnkey with Zerodev + Viem to create sponsored transactions, and also EIP-7702 (Type 4) transactions
+
+with-biconomy-aa
+: demonstrates how to use Turnkey with Biconomy + Ethers / Viem to create sponsored transactions, including an example using Biconomy’s Nexus Client
+
+with-eth-passkeys-signer
+: demonstrates both Ethers and Viem integrations, with an optional Biconomy account abstraction integration.
+
+with-gnosis
+: shows how to use Turnkey with
+Gnosis (Safe)
+.
+
+with-uniswap
+: shows how to use Turnkey with Uniswap, using Ethers.
+
+with-eip-1193-provider
+: short example focused on EIP-1193 provider usage.
+
+​
+
+Which EVM chains does Turnkey support?
+
+Turnkey supports the EVM chains below for address derivation and signing arbitrary transactions:
+
+Arbitrum
+
+Aurora
+
+Avalanche C chain
+
+Avalanche Fuji
+
+Base
+
+Berachain
+
+BNB Smart Chain
+
+Celo
+
+Chiliz
+
+Cronos
+
+EON
+
+Ethereum
+
+Fantom
+
+Flare
+
+Gnosis
+
+Holesky Redstone
+
+Holesky Garnet
+
+Hyperliquid
+
+Lukso
+
+Linea
+
+Monad
+
+Moonbeam
+
+Optimism
+
+Palm
+
+Polygon
+
+Redstone
+
+Robinhood Chain
+
+Scroll
+
+zkSync
+
+Zora
+
+If you are using an EVM chain we do not support, feel free to contact us at
+hello@turnkey.com
+, on
+X
+, or
+on Slack
+.
+
+Was this page helpful?
+
+Yes
+
+No
+
+Overview
+
+Overview
+
+⌘
+I
+
+x
+
+github
+
+slack
+
+linkedin
+
+Powered by
+
+This documentation is built and hosted on Mintlify, a developer documentation platform
+
+Assistant
+
+Responses are generated using AI and may contain mistakes.
+
+

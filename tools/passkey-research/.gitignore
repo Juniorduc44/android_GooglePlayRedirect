@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+**/.env.local
+
+# Node / Next
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+*.log
+npm-debug.log*
+
+# Local clones (large; re-fetch per CHECKPOINT.md)
+tkhq-sdk/
+daimo-p256-verifier/
+passkeys-4337-smart-wallet/
+base-webauthn-sol/
+w3pk/
+portkey-client/
+turnkey-demo-passkey-wallet/
+demo-embedded-wallet/
+
+# OS / editor
+.DS_Store
+*.swp

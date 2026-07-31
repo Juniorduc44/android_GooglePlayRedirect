@@ -1,0 +1,34 @@
+{
+  "name": "rh-passkey-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Robinhood Chain passkey wallet PoC using @turnkey/react-wallet-kit",
+  "scripts": {
+    "dev": "next dev -p 3456",
+    "build": "next build",
+    "start": "next start -p 3456",
+    "tk": "node --env-file=.env.local scripts/tk.mjs",
+    "tk:health": "node --env-file=.env.local scripts/tk.mjs health",
+    "tk:whoami": "node --env-file=.env.local scripts/tk.mjs whoami",
+    "tk:wallets": "node --env-file=.env.local scripts/tk.mjs wallets",
+    "tk:suborgs": "node --env-file=.env.local scripts/tk.mjs suborgs",
+    "tk:stamp": "node --env-file=.env.local scripts/tk.mjs stamp-demo"
+  },
+  "dependencies": {
+    "@turnkey/api-key-stamper": "^0.6.8",
+    "@turnkey/crypto": "^2.10.1",
+    "@turnkey/http": "^5.0.0",
+    "@turnkey/react-wallet-kit": "^2.2.0",
+    "@turnkey/sdk-server": "^7.0.0",
+    "next": "^14.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.4.0"
+  }
+}
